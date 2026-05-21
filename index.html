@@ -1,0 +1,1449 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Acephone · CDR Analytics</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+/* ══════════════════════════════════════════════════
+   RESET & BASE
+══════════════════════════════════════════════════ */
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --ink:#0C1117;--ink2:#2D3748;--ink3:#4A5568;--ink4:#718096;
+  --paper:#F7F8FA;--surface:#FFFFFF;--surface2:#F0F2F5;
+  --border:#E2E6EC;--border2:#C8CDD6;
+  --green:#0F9B6E;--green-d:#087A55;--green-l:#E6F7F2;--green-m:#B2EBD9;
+  --blue:#2563EB;--blue-l:#EFF6FF;
+  --red:#DC2626;--red-l:#FEF2F2;
+  --amber:#D97706;--amber-l:#FFFBEB;
+  --purple:#7C3AED;--purple-l:#F5F3FF;
+  --teal:#0891B2;--teal-l:#ECFEFF;
+  --r6:6px;--r10:10px;--r14:14px;--r20:20px;
+  --shadow-xs:0 1px 2px rgba(0,0,0,.06);
+  --shadow-sm:0 1px 4px rgba(0,0,0,.08),0 1px 2px rgba(0,0,0,.04);
+  --shadow-md:0 4px 12px rgba(0,0,0,.08),0 2px 4px rgba(0,0,0,.04);
+  --shadow-lg:0 12px 32px rgba(0,0,0,.12),0 4px 8px rgba(0,0,0,.06);
+}
+html{font-size:14px;-webkit-font-smoothing:antialiased}
+body{font-family:'DM Sans',sans-serif;background:var(--paper);color:var(--ink);min-height:100vh;line-height:1.5}
+code,pre,.mono{font-family:'DM Mono',monospace}
+
+/* ══════════════════════════════════════════════════
+   SCROLLBAR
+══════════════════════════════════════════════════ */
+::-webkit-scrollbar{width:6px;height:6px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:var(--border2);border-radius:3px}
+
+/* ══════════════════════════════════════════════════
+   TOPBAR
+══════════════════════════════════════════════════ */
+.topbar{
+  height:56px;background:var(--surface);border-bottom:1px solid var(--border);
+  display:flex;align-items:center;padding:0 1.5rem;gap:12px;
+  position:sticky;top:0;z-index:500;box-shadow:var(--shadow-xs);
+}
+.topbar-brand{display:flex;align-items:center;gap:10px}
+.topbar-logo{
+  width:32px;height:32px;background:var(--green);border-radius:var(--r6);
+  display:flex;align-items:center;justify-content:center;flex-shrink:0;
+}
+.topbar-logo svg{width:18px;height:18px;fill:none;stroke:#fff;stroke-width:2.5;stroke-linecap:round}
+.topbar-name{font-size:15px;font-weight:700;color:var(--ink);letter-spacing:-.3px}
+.topbar-tag{font-size:11px;color:var(--ink4);font-weight:400;margin-top:1px}
+.topbar-meta{margin-left:auto;display:flex;align-items:center;gap:8px}
+.topbar-file{font-size:12px;color:var(--ink4);display:none;align-items:center;gap:5px}
+.topbar-file span{color:var(--ink2);font-weight:500}
+.btn{
+  display:inline-flex;align-items:center;gap:6px;padding:7px 14px;
+  border-radius:var(--r6);font-size:12px;font-weight:600;cursor:pointer;
+  border:none;transition:all .15s;white-space:nowrap;font-family:inherit;
+}
+.btn-ghost{background:transparent;color:var(--ink3);border:1px solid var(--border)}
+.btn-ghost:hover{background:var(--surface2);border-color:var(--border2)}
+.btn-primary{background:var(--green);color:#fff;box-shadow:var(--shadow-xs)}
+.btn-primary:hover{background:var(--green-d)}
+.btn-primary:disabled{opacity:.5;cursor:not-allowed}
+.btn svg{width:14px;height:14px;flex-shrink:0}
+
+/* ══════════════════════════════════════════════════
+   UPLOAD SCREEN
+══════════════════════════════════════════════════ */
+#screen-upload{
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  min-height:calc(100vh - 56px);padding:2rem;
+  background:radial-gradient(ellipse 80% 60% at 50% 0%,#E6F7F2 0%,transparent 70%),var(--paper);
+}
+.upload-card{
+  background:var(--surface);border-radius:var(--r20);padding:3rem 2.5rem;
+  max-width:520px;width:100%;box-shadow:var(--shadow-lg);border:1px solid var(--border);
+  text-align:center;animation:fadeUp .4s ease;
+}
+@keyframes fadeUp{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:none}}
+.upload-icon-wrap{
+  width:72px;height:72px;background:var(--green-l);border-radius:var(--r14);
+  display:flex;align-items:center;justify-content:center;margin:0 auto 1.25rem;
+  border:2px solid var(--green-m);
+}
+.upload-icon-wrap svg{width:36px;height:36px;stroke:var(--green);fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.upload-card h1{font-size:22px;font-weight:700;color:var(--ink);margin-bottom:.4rem;letter-spacing:-.4px}
+.upload-card p{font-size:13px;color:var(--ink4);margin-bottom:2rem;line-height:1.6}
+.drop-zone{
+  border:2px dashed var(--border2);border-radius:var(--r14);padding:2rem;
+  cursor:pointer;transition:all .2s;position:relative;background:var(--paper);
+}
+.drop-zone:hover,.drop-zone.drag{border-color:var(--green);background:var(--green-l)}
+.drop-zone input{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%}
+.drop-zone-inner{pointer-events:none}
+.drop-zone-inner svg{width:28px;height:28px;stroke:var(--ink4);fill:none;stroke-width:1.8;stroke-linecap:round;margin-bottom:.6rem}
+.drop-zone:hover .drop-zone-inner svg,.drop-zone.drag .drop-zone-inner svg{stroke:var(--green)}
+.drop-title{font-size:14px;font-weight:600;color:var(--ink2);margin-bottom:.25rem}
+.drop-sub{font-size:12px;color:var(--ink4)}
+.drop-formats{display:flex;gap:6px;justify-content:center;margin-top:1rem;flex-wrap:wrap}
+.fmt-tag{background:var(--surface2);color:var(--ink3);padding:3px 10px;border-radius:99px;font-size:11px;font-weight:600;border:1px solid var(--border)}
+.upload-note{margin-top:1.5rem;font-size:11px;color:var(--ink4);display:flex;align-items:center;justify-content:center;gap:5px}
+.upload-note svg{width:12px;height:12px;stroke:var(--ink4);fill:none;stroke-width:2}
+.upload-loaded{border-color:var(--green);border-style:solid;background:var(--green-l)}
+.upload-loaded .drop-zone-inner svg{stroke:var(--green)}
+.file-name-badge{
+  display:inline-flex;align-items:center;gap:6px;background:var(--green);color:#fff;
+  padding:6px 14px;border-radius:99px;font-size:12px;font-weight:600;margin-top:1rem;
+}
+.upload-processing{display:none;align-items:center;gap:8px;justify-content:center;margin-top:1rem;font-size:13px;color:var(--green);font-weight:500}
+.spinner{width:16px;height:16px;border:2px solid var(--green-m);border-top-color:var(--green);border-radius:50%;animation:spin .7s linear infinite;flex-shrink:0}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* ══════════════════════════════════════════════════
+   DASHBOARD LAYOUT
+══════════════════════════════════════════════════ */
+#screen-dashboard{display:none}
+.dash-layout{display:flex;height:calc(100vh - 56px)}
+
+/* Sidebar */
+.sidebar{
+  width:200px;flex-shrink:0;background:var(--surface);border-right:1px solid var(--border);
+  padding:1rem 0;display:flex;flex-direction:column;gap:2px;overflow-y:auto;
+}
+.nav-section{padding:.5rem 1rem .25rem;font-size:10px;font-weight:700;color:var(--ink4);text-transform:uppercase;letter-spacing:.08em}
+.nav-item{
+  display:flex;align-items:center;gap:9px;padding:.55rem 1rem;font-size:13px;
+  font-weight:500;color:var(--ink3);cursor:pointer;border-radius:0;transition:all .15s;
+  border-left:3px solid transparent;margin:0 0;
+}
+.nav-item:hover{background:var(--surface2);color:var(--ink)}
+.nav-item.active{background:var(--green-l);color:var(--green-d);border-left-color:var(--green);font-weight:600}
+.nav-item svg{width:15px;height:15px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;flex-shrink:0}
+.nav-badge{margin-left:auto;background:var(--surface2);color:var(--ink4);padding:1px 7px;border-radius:99px;font-size:10px;font-weight:700}
+.nav-item.active .nav-badge{background:var(--green-m);color:var(--green-d)}
+
+/* Filter bar */
+.filter-bar{
+  background:var(--surface);border-bottom:1px solid var(--border);
+  padding:.6rem 1.5rem;display:flex;align-items:center;gap:10px;flex-wrap:wrap;
+}
+.filter-label{font-size:11px;font-weight:700;color:var(--ink4);text-transform:uppercase;letter-spacing:.05em;white-space:nowrap}
+.date-pill{
+  padding:5px 13px;border-radius:99px;font-size:12px;font-weight:600;
+  cursor:pointer;border:1.5px solid var(--border);color:var(--ink3);
+  background:var(--surface);transition:all .15s;white-space:nowrap;
+}
+.date-pill:hover{border-color:var(--green);color:var(--green)}
+.date-pill.active{background:var(--green);border-color:var(--green);color:#fff}
+.date-input-wrap{
+  display:flex;align-items:center;gap:5px;background:var(--surface2);
+  border:1.5px solid var(--border);border-radius:var(--r6);padding:5px 10px;
+  transition:all .2s;
+}
+.date-input-wrap:focus-within{border-color:var(--green);background:var(--green-l)}
+.date-input-wrap input[type=date]{border:none;background:transparent;font-size:12px;font-weight:500;color:var(--ink);outline:none;cursor:pointer;font-family:inherit}
+.filter-sep{width:1px;height:20px;background:var(--border);flex-shrink:0}
+.filter-info{margin-left:auto;font-size:12px;color:var(--ink4);font-weight:500;white-space:nowrap}
+
+/* Content */
+.content-wrap{flex:1;overflow-y:auto;display:flex;flex-direction:column}
+.content{padding:1.25rem 1.5rem 3rem;flex:1}
+
+/* Panel */
+.panel{display:none}.panel.active{display:block}
+
+/* ══════════════════════════════════════════════════
+   SECTION TITLE
+══════════════════════════════════════════════════ */
+.sec{font-size:11px;font-weight:700;color:var(--ink4);text-transform:uppercase;letter-spacing:.08em;margin:1.5rem 0 .75rem;display:flex;align-items:center;gap:8px}
+.sec::after{content:'';flex:1;height:1px;background:var(--border)}
+
+/* ══════════════════════════════════════════════════
+   KPI CARDS
+══════════════════════════════════════════════════ */
+.kpi-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(152px,1fr));gap:10px}
+.kpi-card{
+  background:var(--surface);border:1px solid var(--border);border-radius:var(--r10);
+  padding:.85rem 1rem 1rem;position:relative;overflow:hidden;
+  box-shadow:var(--shadow-xs);transition:box-shadow .2s;
+}
+.kpi-card:hover{box-shadow:var(--shadow-sm)}
+.kpi-accent{position:absolute;top:0;left:0;right:0;height:3px;background:var(--kc,var(--green))}
+.kpi-icon{font-size:18px;line-height:1;margin-bottom:6px}
+.kpi-label{font-size:11px;color:var(--ink4);font-weight:600;margin-bottom:2px;letter-spacing:.01em}
+.kpi-value{font-size:26px;font-weight:700;color:var(--kc,var(--ink));line-height:1;letter-spacing:-.5px}
+.kpi-sub{font-size:11px;color:var(--ink4);margin-top:5px;display:flex;align-items:center;gap:4px}
+.tag{display:inline-block;padding:1px 6px;border-radius:4px;font-size:10px;font-weight:700}
+.tag-up{background:#DCFCE7;color:#15803D}
+.tag-down{background:#FEE2E2;color:#B91C1C}
+
+/* ══════════════════════════════════════════════════
+   CHART CARDS
+══════════════════════════════════════════════════ */
+.chart-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px}
+.chart-grid-3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:12px}
+.chart-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--r10);padding:1.1rem 1.25rem;box-shadow:var(--shadow-xs)}
+.chart-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
+.chart-title{font-size:13px;font-weight:700;color:var(--ink)}
+.chart-sub{font-size:11px;color:var(--ink4)}
+.chart-canvas{position:relative;width:100%}
+.legend-row{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:8px}
+.leg{display:flex;align-items:center;gap:4px;font-size:11px;color:var(--ink3)}
+.leg-dot{width:9px;height:9px;border-radius:2px;flex-shrink:0}
+
+/* ══════════════════════════════════════════════════
+   TABLES
+══════════════════════════════════════════════════ */
+.table-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--r10);overflow:hidden;box-shadow:var(--shadow-xs)}
+.table-head{padding:.85rem 1.25rem;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between}
+.table-head h3{font-size:13px;font-weight:700;color:var(--ink)}
+.table-wrap{overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-size:12px}
+thead th{
+  padding:9px 12px;text-align:left;font-size:11px;font-weight:700;
+  color:var(--ink4);background:var(--surface2);border-bottom:1.5px solid var(--border);
+  white-space:nowrap;letter-spacing:.02em;
+}
+thead th.r{text-align:right}
+tbody td{padding:9px 12px;border-bottom:1px solid var(--surface2);color:var(--ink);vertical-align:middle}
+tbody td.r{text-align:right;font-variant-numeric:tabular-nums}
+tbody tr:last-child td{border-bottom:none}
+tbody tr:hover td{background:#FAFBFC}
+tfoot td{padding:9px 12px;font-weight:700;background:var(--surface2);border-top:1.5px solid var(--border)}
+tfoot td.r{text-align:right}
+.badge{display:inline-flex;align-items:center;justify-content:center;padding:2px 9px;border-radius:99px;font-size:11px;font-weight:700;min-width:30px}
+.b-green{background:var(--green-l);color:var(--green-d)}
+.b-blue{background:var(--blue-l);color:var(--blue)}
+.b-red{background:var(--red-l);color:var(--red)}
+.b-amber{background:var(--amber-l);color:var(--amber)}
+.b-gray{background:var(--surface2);color:var(--ink3)}
+.b-purple{background:var(--purple-l);color:var(--purple)}
+.bar-cell{display:flex;align-items:center;gap:7px}
+.mini-bar{flex:1;height:5px;background:var(--surface2);border-radius:3px;overflow:hidden;min-width:44px}
+.mini-fill{height:100%;border-radius:3px}
+.agent-cell{display:flex;align-items:center;gap:8px}
+.avatar{width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:800;flex-shrink:0}
+
+/* ══════════════════════════════════════════════════
+   LEAD LIST CARDS
+══════════════════════════════════════════════════ */
+.ll-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:12px}
+.ll-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--r10);overflow:hidden;box-shadow:var(--shadow-xs)}
+.ll-head{padding:.85rem 1rem;border-bottom:1px solid var(--border);display:flex;align-items:flex-start;justify-content:space-between;border-left:4px solid var(--lc,var(--green))}
+.ll-id{font-size:13px;font-weight:700;color:var(--lc,var(--green))}
+.ll-meta{font-size:11px;color:var(--ink4);margin-top:2px}
+.ll-total{font-size:24px;font-weight:800;color:var(--lc,var(--green))}
+.ll-bar{height:3px;background:var(--border)}
+.ll-bar-fill{height:100%;border-radius:0;transition:width .6s}
+.ll-row{display:flex;align-items:center;justify-content:space-between;padding:6px 1rem;border-bottom:1px solid var(--surface2);font-size:12px}
+.ll-row:last-child{border:none}
+.ll-key{color:var(--ink4)}
+.ll-val{font-weight:700;color:var(--ink)}
+
+/* ══════════════════════════════════════════════════
+   DISPOSITION BREAKDOWN
+══════════════════════════════════════════════════ */
+.dg{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:12px}
+.disp-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--r10);overflow:hidden;box-shadow:var(--shadow-xs)}
+.disp-head{padding:.7rem 1rem;background:var(--surface2);border-bottom:1px solid var(--border);display:flex;align-items:center;gap:8px}
+.disp-agent{font-size:13px;font-weight:700;color:var(--ink)}
+.disp-count{font-size:11px;color:var(--ink4)}
+.disp-row{display:flex;align-items:center;padding:7px 1rem;border-bottom:1px solid var(--surface2);gap:8px}
+.disp-row:last-child{border:none}
+.disp-row:hover{background:var(--surface2)}
+.disp-name{flex:1;font-size:12px;color:var(--ink);line-height:1.3}
+.disp-cat{font-size:10px;font-weight:700;padding:2px 7px;border-radius:4px;flex-shrink:0;white-space:nowrap}
+.disp-num{font-size:13px;font-weight:800;min-width:24px;text-align:right;color:var(--ink)}
+
+/* ══════════════════════════════════════════════════
+   LEAD LIST NAME MAPPER
+══════════════════════════════════════════════════ */
+.ll-mapper{background:var(--surface);border:1px solid var(--border);border-radius:var(--r10);padding:1rem 1.25rem;margin-bottom:1rem;box-shadow:var(--shadow-xs)}
+.ll-mapper-head{display:flex;align-items:center;gap:10px;margin-bottom:.75rem}
+.ll-mapper-title{font-size:13px;font-weight:700;color:var(--ink)}
+.ll-mapper-sub{font-size:11px;color:var(--ink4);margin-left:4px}
+.ll-mapper-rows{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:8px}
+.ll-mapper-row{display:flex;align-items:center;gap:8px;background:var(--surface2);border:1.5px solid var(--border);border-radius:var(--r6);padding:6px 10px;transition:border-color .2s,background .2s}
+.ll-mapper-row:focus-within{border-color:var(--green);background:var(--green-l)}
+.ll-id-badge{font-size:11px;font-weight:700;color:var(--ink3);background:var(--surface);border:1px solid var(--border);border-radius:4px;padding:2px 9px;white-space:nowrap;font-family:'DM Mono',monospace;flex-shrink:0}
+.ll-arrow{color:var(--ink4);font-size:14px;flex-shrink:0}
+.ll-name-input{flex:1;border:none;background:transparent;font-size:13px;font-weight:600;color:var(--ink);outline:none;font-family:inherit;min-width:0}
+.ll-name-input::placeholder{color:var(--ink4);font-weight:400;font-size:12px}
+.ll-mapper-hint{font-size:11px;color:var(--ink4);margin-top:.6rem;display:flex;align-items:center;gap:5px}
+
+/* ══════════════════════════════════════════════════
+   INBOUND
+══════════════════════════════════════════════════ */
+.ib-stats{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:10px;margin-bottom:1rem}
+.ib-stat{background:var(--surface);border:1px solid var(--border);border-radius:var(--r10);padding:.8rem 1rem;text-align:center;box-shadow:var(--shadow-xs)}
+.ib-val{font-size:26px;font-weight:800;line-height:1}
+.ib-lbl{font-size:11px;color:var(--ink4);margin-top:4px}
+
+/* ══════════════════════════════════════════════════
+   CALL LOG TABLE
+══════════════════════════════════════════════════ */
+.log-answered td{background:#FAFFFE}
+.log-missed td{background:#FFFAFA}
+.status-dot{width:7px;height:7px;border-radius:50%;display:inline-block;margin-right:4px}
+
+/* ══════════════════════════════════════════════════
+   RESPONSIVE
+══════════════════════════════════════════════════ */
+@media(max-width:900px){
+  .chart-grid,.chart-grid-3{grid-template-columns:1fr}
+  .sidebar{display:none}
+  .content{padding:1rem}
+}
+</style>
+</head>
+<body>
+
+<!-- ══════════════════════════════════════════════
+  TOPBAR
+══════════════════════════════════════════════════ -->
+<div class="topbar">
+  <div class="topbar-brand">
+    <div class="topbar-logo">
+      <svg viewBox="0 0 24 24"><path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07 19.5 19.5 0 01-6-6A19.79 19.79 0 012.12 4.18 2 2 0 014.11 2h3a2 2 0 012 1.72c.127.96.361 1.903.7 2.81a2 2 0 01-.45 2.11L8.09 9.91a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0122 16.92z"/></svg>
+    </div>
+    <div>
+      <div class="topbar-name">Acephone Analytics</div>
+      <div class="topbar-tag">CDR Dashboard</div>
+    </div>
+  </div>
+  <div class="topbar-meta">
+    <div class="topbar-file" id="topbar-file">
+      <svg viewBox="0 0 24 24" style="width:13px;height:13px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14,2 14,8 20,8"/></svg>
+      <span id="file-name-display"></span>
+    </div>
+    <button class="btn btn-ghost" id="btn-new-file" style="display:none" onclick="resetDashboard()">
+      <svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M17 8l-5-5-5 5M12 3v12"/></svg>
+      New File
+    </button>
+    <button class="btn btn-primary" id="btn-download" style="display:none" onclick="downloadExcel()">
+      <svg viewBox="0 0 24 24" style="stroke:#fff"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
+      Download Excel
+    </button>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════
+  UPLOAD SCREEN
+══════════════════════════════════════════════════ -->
+<div id="screen-upload">
+  <div class="upload-card">
+    <div class="upload-icon-wrap">
+      <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14,2 14,8 20,8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10,9 9,9 8,9"/></svg>
+    </div>
+    <h1>CDR Analytics Dashboard</h1>
+    <p>Upload your Acephone Call Performance Report to instantly get<br>agent performance, lead list analysis, and inbound tracking.</p>
+    <div class="drop-zone" id="drop-zone">
+      <input type="file" id="file-input" accept=".csv,.xlsx,.xls" onchange="handleFile(this.files[0])">
+      <div class="drop-zone-inner">
+        <svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M17 8l-5-5-5 5M12 3v12"/></svg>
+        <div class="drop-title">Drop your CDR file here</div>
+        <div class="drop-sub">or click to browse your computer</div>
+        <div class="drop-formats"><span class="fmt-tag">CSV</span><span class="fmt-tag">XLSX</span><span class="fmt-tag">XLS</span></div>
+      </div>
+    </div>
+    <div class="upload-processing" id="upload-processing">
+      <div class="spinner"></div>
+      Processing your CDR file…
+    </div>
+    <div class="upload-note">
+      <svg viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>
+      All data stays in your browser — nothing is sent to any server
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════
+  DASHBOARD SCREEN
+══════════════════════════════════════════════════ -->
+<div id="screen-dashboard">
+  <div class="dash-layout">
+
+    <!-- SIDEBAR -->
+    <nav class="sidebar">
+      <div class="nav-section">Analysis</div>
+      <div class="nav-item active" onclick="showPanel('overview')" id="nav-overview">
+        <svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+        Overview
+      </div>
+      <div class="nav-item" onclick="showPanel('agents')" id="nav-agents">
+        <svg viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75"/></svg>
+        Agents
+        <span class="nav-badge" id="nb-agents">0</span>
+      </div>
+      <div class="nav-item" onclick="showPanel('leadlist')" id="nav-leadlist">
+        <svg viewBox="0 0 24 24"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg>
+        Lead Lists
+        <span class="nav-badge" id="nb-lists">0</span>
+      </div>
+      <div class="nav-item" onclick="showPanel('inbound')" id="nav-inbound">
+        <svg viewBox="0 0 24 24"><polyline points="8 17 12 21 16 17"/><line x1="12" y1="12" x2="12" y2="21"/><path d="M20.88 18.09A5 5 0 0018 9h-1.26A8 8 0 103 16.29"/></svg>
+        Inbound
+        <span class="nav-badge" id="nb-inbound">0</span>
+      </div>
+      <div class="nav-item" onclick="showPanel('disposition')" id="nav-disposition">
+        <svg viewBox="0 0 24 24"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
+        Dispositions
+      </div>
+      <div class="nav-item" onclick="showPanel('calllog')" id="nav-calllog">
+        <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14,2 14,8 20,8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10,9 9,9 8,9"/></svg>
+        Call Log
+      </div>
+    </nav>
+
+    <!-- CONTENT -->
+    <div class="content-wrap">
+      <!-- Filter bar -->
+      <div class="filter-bar">
+        <span class="filter-label">Date</span>
+        <div id="date-pills" style="display:flex;gap:6px;flex-wrap:wrap"></div>
+        <div class="filter-sep"></div>
+        <div class="date-input-wrap">
+          <svg viewBox="0 0 24 24" style="width:13px;height:13px;stroke:var(--ink4);fill:none;stroke-width:2;stroke-linecap:round;flex-shrink:0"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+          <input type="date" id="fd" onchange="onDateChange()">
+        </div>
+        <span style="font-size:11px;color:var(--ink4)">to</span>
+        <div class="date-input-wrap">
+          <svg viewBox="0 0 24 24" style="width:13px;height:13px;stroke:var(--ink4);fill:none;stroke-width:2;stroke-linecap:round;flex-shrink:0"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+          <input type="date" id="td" onchange="onDateChange()">
+        </div>
+        <div class="filter-info" id="filter-info"></div>
+      </div>
+
+      <!-- PANELS -->
+      <div class="content">
+
+        <!-- ── OVERVIEW ── -->
+        <div class="panel active" id="panel-overview">
+          <div class="sec">Key Metrics</div>
+          <div class="kpi-grid" id="kpi-main"></div>
+          <div class="sec">Call Outcomes</div>
+          <div class="kpi-grid" id="kpi-outcomes"></div>
+          <div class="sec">Visuals</div>
+          <div class="chart-grid">
+            <div class="chart-card">
+              <div class="chart-head"><span class="chart-title">Outcome Distribution</span></div>
+              <div class="legend-row" id="donut-legend"></div>
+              <div class="chart-canvas" style="height:210px"><canvas id="c-donut"></canvas></div>
+            </div>
+            <div class="chart-card">
+              <div class="chart-head"><span class="chart-title">Hourly Call Volume</span><span class="chart-sub">Answered vs Missed</span></div>
+              <div class="chart-canvas" style="height:250px"><canvas id="c-hourly"></canvas></div>
+            </div>
+          </div>
+          <div class="chart-grid">
+            <div class="chart-card">
+              <div class="chart-head"><span class="chart-title">Top Circles</span><span class="chart-sub">by volume</span></div>
+              <div class="chart-canvas" style="height:240px"><canvas id="c-circles"></canvas></div>
+            </div>
+            <div class="chart-card">
+              <div class="chart-head"><span class="chart-title">Operator Split</span></div>
+              <div class="chart-canvas" style="height:240px"><canvas id="c-operators"></canvas></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ── AGENTS ── -->
+        <div class="panel" id="panel-agents">
+          <div class="sec">Agent Performance</div>
+          <div class="chart-grid" style="margin-bottom:12px">
+            <div class="chart-card">
+              <div class="chart-head"><span class="chart-title">Calls per Agent</span></div>
+              <div class="legend-row">
+                <span class="leg"><span class="leg-dot" style="background:#93C5FD"></span>Total</span>
+                <span class="leg"><span class="leg-dot" style="background:var(--green)"></span>Answered</span>
+                <span class="leg"><span class="leg-dot" style="background:#FCA5A5"></span>Missed</span>
+              </div>
+              <div class="chart-canvas" id="agent-chart-wrap" style="height:200px"><canvas id="c-agents"></canvas></div>
+            </div>
+            <div class="chart-card">
+              <div class="chart-head"><span class="chart-title">CPR % by Agent</span><span class="chart-sub">Converted ÷ Answered</span></div>
+              <div class="chart-canvas" style="height:250px"><canvas id="c-cpr"></canvas></div>
+            </div>
+          </div>
+          <div class="table-card">
+            <div class="table-head"><h3>Agent Breakdown</h3></div>
+            <div class="table-wrap">
+              <table>
+                <thead><tr>
+                  <th>Agent</th><th class="r">Total</th><th class="r">Answered</th><th class="r">Missed</th>
+                  <th style="min-width:130px">Answer Rate</th>
+                  <th class="r">Converted</th><th class="r">Interested</th><th class="r">Not Interested</th>
+                  <th class="r">Not Responded</th><th class="r">Call Back</th><th class="r">Undisposed</th><th class="r">Others</th>
+                  <th class="r">CPR %</th><th>Avg Talk</th>
+                </tr></thead>
+                <tbody id="t-agents"></tbody>
+                <tfoot id="tf-agents"></tfoot>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <!-- ── LEAD LIST ── -->
+        <div class="panel" id="panel-leadlist">
+          <!-- Lead List Name Mapper -->
+          <div class="ll-mapper" id="ll-mapper" style="display:none">
+            <div class="ll-mapper-head">
+              <svg viewBox="0 0 24 24" style="width:16px;height:16px;stroke:var(--green);fill:none;stroke-width:2;stroke-linecap:round;flex-shrink:0"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+              <span class="ll-mapper-title">Name your Lead Lists</span>
+              <span class="ll-mapper-sub">— type a name next to each List ID</span>
+            </div>
+            <div class="ll-mapper-rows" id="ll-mapper-rows"></div>
+            <div class="ll-mapper-hint">
+              <svg viewBox="0 0 24 24" style="width:12px;height:12px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;flex-shrink:0"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+              Names update cards, charts, tables, and the Excel download automatically
+            </div>
+          </div>
+          <div class="sec">Lead List Cards</div>
+          <div class="ll-grid" id="ll-cards"></div>
+          <div class="sec">Comparison Charts</div>
+          <div class="chart-grid">
+            <div class="chart-card">
+              <div class="chart-head"><span class="chart-title">Calls per Lead List</span></div>
+              <div class="chart-canvas" style="height:250px"><canvas id="c-ll-bar"></canvas></div>
+            </div>
+            <div class="chart-card">
+              <div class="chart-head"><span class="chart-title">Outcome by Lead List</span></div>
+              <div class="chart-canvas" style="height:250px"><canvas id="c-ll-outcome"></canvas></div>
+            </div>
+          </div>
+          <div class="sec">Detail Table</div>
+          <div class="table-card">
+            <div class="table-wrap">
+              <table>
+                <thead><tr>
+                  <th>List ID</th><th class="r">Total</th><th class="r">Answered</th><th class="r">Missed</th>
+                  <th style="min-width:120px">Answer Rate</th>
+                  <th class="r">Converted</th><th class="r">Interested</th><th class="r">Not Interested</th>
+                  <th class="r">Not Responded</th><th class="r">Call Back</th><th class="r">CPR %</th>
+                </tr></thead>
+                <tbody id="t-ll"></tbody>
+                <tfoot id="tf-ll"></tfoot>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <!-- ── INBOUND ── -->
+        <div class="panel" id="panel-inbound">
+          <div class="sec">Inbound Summary</div>
+          <div class="ib-stats" id="ib-stats"></div>
+          <div class="chart-grid">
+            <div class="chart-card">
+              <div class="chart-head"><span class="chart-title">Inbound Hourly</span></div>
+              <div class="chart-canvas" style="height:230px"><canvas id="c-ib-hourly"></canvas></div>
+            </div>
+            <div class="chart-card">
+              <div class="chart-head"><span class="chart-title">By Agent</span><span class="chart-sub">who handled inbound</span></div>
+              <div class="chart-canvas" style="height:230px"><canvas id="c-ib-agent"></canvas></div>
+            </div>
+          </div>
+          <div class="sec">Inbound Call Log</div>
+          <div class="table-card">
+            <div class="table-wrap">
+              <table>
+                <thead><tr>
+                  <th>Time</th><th>Agent</th><th>Customer</th><th>Queue</th>
+                  <th>Status</th><th>Disposition</th><th>Talk Time</th>
+                </tr></thead>
+                <tbody id="t-inbound"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <!-- ── DISPOSITIONS ── -->
+        <div class="panel" id="panel-disposition">
+          <div class="sec">All Dispositions</div>
+          <div class="table-card" style="margin-bottom:1rem">
+            <div class="table-wrap">
+              <table>
+                <thead><tr><th>Disposition</th><th>Category</th><th class="r">Count</th><th>% of Total</th><th style="min-width:140px">Distribution</th></tr></thead>
+                <tbody id="t-disp-all"></tbody>
+              </table>
+            </div>
+          </div>
+          <div class="sec">By Agent</div>
+          <div class="dg" id="dg-agents"></div>
+        </div>
+
+        <!-- ── CALL LOG ── -->
+        <div class="panel" id="panel-calllog">
+          <div class="sec">Complete Call Log <span id="log-count" style="font-size:12px;font-weight:500;color:var(--ink4);text-transform:none;letter-spacing:0"></span></div>
+          <div class="table-card">
+            <div class="table-wrap">
+              <table>
+                <thead><tr>
+                  <th>Time</th><th>Direction</th><th>Agent</th><th>Customer No.</th>
+                  <th>Customer Name</th><th>Status</th><th>Disposition</th><th>Category</th>
+                  <th>Talk Time</th><th>List ID</th><th>Circle</th><th>Operator</th>
+                </tr></thead>
+                <tbody id="t-log"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+      </div><!-- /content -->
+    </div><!-- /content-wrap -->
+  </div><!-- /dash-layout -->
+</div><!-- /screen-dashboard -->
+
+<!-- ══════════════════════════════════════════════
+  JAVASCRIPT
+══════════════════════════════════════════════════ -->
+<script>
+// ─── STATE ───────────────────────────────────────
+let ROWS = [], DATES = [], CUR = 'all';
+let LIST_NAMES = {}; // { listId: 'Custom Name' }
+
+function getListName(id) {
+  return LIST_NAMES[id] ? LIST_NAMES[id] : `List ${id}`;
+}
+
+function buildMapper() {
+  const lists = [...new Set(ROWS.filter(r => r['Direction'] === 'Outbound').map(r => r._listId))].sort();
+  if (!lists.length) return;
+  const mapper = document.getElementById('ll-mapper');
+  const rows = document.getElementById('ll-mapper-rows');
+  mapper.style.display = 'block';
+  rows.innerHTML = lists.map(id => `
+    <div class="ll-mapper-row">
+      <span class="ll-id-badge">${id}</span>
+      <span class="ll-arrow">→</span>
+      <input class="ll-name-input" id="ln-${id}" type="text"
+        placeholder="Enter list name…"
+        value="${LIST_NAMES[id] || ''}"
+        oninput="LIST_NAMES['${id}'] = this.value.trim(); renderPanel('leadlist');">
+    </div>`).join('');
+}
+const CHARTS = {};
+const PALETTE = ['#0F9B6E','#2563EB','#F59E0B','#EF4444','#8B5CF6','#EC4899','#14B8A6','#F97316','#6366F1','#84CC16'];
+const CAT_CFG = {
+  'Converted':      { bg:'#D1FAE5', fg:'#065F46', dot:'#0F9B6E' },
+  'Interested':     { bg:'#DBEAFE', fg:'#1E40AF', dot:'#2563EB' },
+  'Not Interested': { bg:'#FEE2E2', fg:'#991B1B', dot:'#EF4444' },
+  'Not Responded':  { bg:'#F1F5F9', fg:'#475569', dot:'#94A3B8' },
+  'Call Back':      { bg:'#FEF3C7', fg:'#92400E', dot:'#F59E0B' },
+  'Undisposed':     { bg:'#EDE9FE', fg:'#5B21B6', dot:'#8B5CF6' },
+  'Others':         { bg:'#F1F5F9', fg:'#475569', dot:'#94A3B8' },
+};
+const AG_PAL = [
+  ['#065F46','#D1FAE5'],['#1E40AF','#DBEAFE'],['#92400E','#FEF3C7'],
+  ['#5B21B6','#EDE9FE'],['#075985','#ECFEFF'],['#9D174D','#FEF9C3']
+];
+const LL_PAL = [
+  ['#0F9B6E','#E6F7F2'],['#2563EB','#EFF6FF'],['#D97706','#FFFBEB'],['#7C3AED','#F5F3FF']
+];
+
+// ─── FILE HANDLING ───────────────────────────────
+const dz = document.getElementById('drop-zone');
+dz.addEventListener('dragover', e => { e.preventDefault(); dz.classList.add('drag'); });
+dz.addEventListener('dragleave', () => dz.classList.remove('drag'));
+dz.addEventListener('drop', e => { e.preventDefault(); dz.classList.remove('drag'); if (e.dataTransfer.files[0]) handleFile(e.dataTransfer.files[0]); });
+
+function handleFile(file) {
+  if (!file) return;
+  document.getElementById('upload-processing').style.display = 'flex';
+  setTimeout(() => {
+    const reader = new FileReader();
+    reader.onload = e => {
+      try {
+        const wb = XLSX.read(e.target.result, { type: 'binary' });
+        const ws = wb.Sheets[wb.SheetNames[0]];
+        const data = XLSX.utils.sheet_to_json(ws, { defval: '' });
+        if (!data.length) { alert('File appears empty.'); document.getElementById('upload-processing').style.display='none'; return; }
+        processData(data, file.name);
+      } catch(err) { alert('Could not read file:\n' + err.message); document.getElementById('upload-processing').style.display='none'; }
+    };
+    reader.readAsBinaryString(file);
+  }, 50);
+}
+
+// ─── DATA PROCESSING ─────────────────────────────
+function extractAgent(row) {
+  const ab = String(row['Answered By Agent'] || '');
+  if (ab && ab !== 'nan') { try { const d = JSON.parse(ab); if (Array.isArray(d) && d[0]) return d[0].name || ''; } catch(e){} }
+  const cf = String(row['Call Flow'] || '');
+  const m = cf.match(/Agent:\s*([^(]+)\(/);
+  if (m) return m[1].trim();
+  const mb = String(row['Missed By Agent(s)'] || '');
+  if (mb && mb !== 'nan') { try { const d = JSON.parse(mb); if (Array.isArray(d) && d[0]) return d[0].name || ''; } catch(e){} }
+  return 'Unknown';
+}
+function extractDispo(val) {
+  try { const d = JSON.parse(val); return Array.isArray(d) ? d.join(', ') : String(val); }
+  catch(e) { return String(val || '').replace(/[\[\]"]/g,'').trim(); }
+}
+function extractQueue(val) {
+  try { const d = JSON.parse(val); if (Array.isArray(d) && d[0]) return d[0].name || 'Unknown'; } catch(e){}
+  return (val && String(val) !== 'nan') ? String(val) : 'Unknown';
+}
+function categorize(disp) {
+  const d = disp.toLowerCase().trim();
+  if (d === 'converted') return 'Converted';
+  if (d.includes('interested send payment link')) return 'Interested';
+  if (d.startsWith('not interested')) return 'Not Interested';
+  if (['not responded','no answer','queue missed','missed by agent','receiver is busy','receiver is busy'].includes(d)) return 'Not Responded';
+  if (['call back','follow up'].includes(d)) return 'Call Back';
+  if (d === 'undisposed') return 'Undisposed';
+  return 'Others';
+}
+function toSec(v) {
+  try { const p = String(v).split(':'); return (+p[0]) * 3600 + (+p[1]) * 60 + (+p[2]); } catch(e) { return 0; }
+}
+function fmtSec(s) { s = Math.round(s || 0); return `${Math.floor(s/60)}m ${s%60}s`; }
+function pct(v, t) { return t > 0 ? ((v/t)*100).toFixed(1) : '0.0'; }
+
+function processData(data, fname) {
+  ROWS = data.map(row => {
+    const dispo = extractDispo(row['Disposition Names'] || '');
+    const cat = categorize(dispo);
+    const convSec = toSec(row['Conversation Duration'] || '');
+    const rawTime = row['Time'] || row['Call Start Time'] || '';
+    let dateStr = 'Unknown', hour = -1;
+    if (rawTime !== '' && rawTime !== null && rawTime !== undefined) {
+      const rawStr = String(rawTime).trim();
+      // Case 1: Excel serial number (SheetJS converts datetime strings in CSV to serial)
+      // Excel serial: days since 1899-12-30. e.g. 2026-05-20 → ~46162
+      const numVal = parseFloat(rawStr);
+      if (!isNaN(numVal) && numVal > 40000 && numVal < 60000) {
+        // Convert Excel serial to JS Date (Excel epoch = 1899-12-30)
+        const excelEpoch = new Date(1899, 11, 30); // Dec 30, 1899 local time
+        const ms = excelEpoch.getTime() + numVal * 86400 * 1000;
+        const dt = new Date(ms);
+        dateStr = `${dt.getFullYear()}-${String(dt.getMonth()+1).padStart(2,'0')}-${String(dt.getDate()).padStart(2,'0')}`;
+        hour = dt.getHours();
+      }
+      // Case 2: ISO-like string "2026-05-20 19:03:29" or "2026-05-20T19:03:29"
+      else if (/^\d{4}-\d{2}-\d{2}/.test(rawStr)) {
+        // Extract date and hour directly from string to avoid any timezone shift
+        dateStr = rawStr.slice(0, 10); // "2026-05-20"
+        const timePart = rawStr.slice(11, 13); // "19"
+        hour = timePart ? parseInt(timePart, 10) : -1;
+      }
+    }
+    const listId = row['List ID'] ? String(row['List ID']).trim() : 'No List';
+    // Build a display-friendly time string
+    let timeStr = String(rawTime).slice(0, 16);
+    if (!isNaN(parseFloat(String(rawTime))) && parseFloat(String(rawTime)) > 40000) {
+      // Reconstruct from parsed date parts
+      const excelEpoch2 = new Date(1899, 11, 30);
+      const ms2 = excelEpoch2.getTime() + parseFloat(String(rawTime)) * 86400 * 1000;
+      const dt2 = new Date(ms2);
+      const pad = n => String(n).padStart(2,'0');
+      timeStr = `${dt2.getFullYear()}-${pad(dt2.getMonth()+1)}-${pad(dt2.getDate())} ${pad(dt2.getHours())}:${pad(dt2.getMinutes())}:${pad(dt2.getSeconds())}`;
+    }
+    return {
+      ...row,
+      _agent: extractAgent(row),
+      _dispo: dispo,
+      _cat: cat,
+      _convSec: convSec,
+      _timeStr: timeStr,
+      _date: dateStr,
+      _hour: hour,
+      _listId: listId,
+      _queue: extractQueue(row['Inbound Queue'] || ''),
+    };
+  });
+
+  DATES = [...new Set(ROWS.map(r => r._date).filter(d => d !== 'Unknown'))].sort();
+  CUR = 'all';
+
+  // Build date pills
+  const pillsEl = document.getElementById('date-pills');
+  pillsEl.innerHTML = '';
+  const makeP = (lbl, key) => {
+    const el = document.createElement('span');
+    el.className = 'date-pill' + (key === 'all' ? ' active' : '');
+    el.dataset.key = key; el.textContent = lbl;
+    el.onclick = () => setDate(key);
+    return el;
+  };
+  pillsEl.appendChild(makeP('All', 'all'));
+  DATES.forEach(d => {
+    const [dy,dm,dd] = d.split('-').map(Number);
+    const lbl = new Date(dy, dm-1, dd).toLocaleDateString('en-IN', { day:'numeric', month:'short' });
+    pillsEl.appendChild(makeP(lbl, d));
+  });
+
+  // Date inputs
+  ['fd','td'].forEach(id => {
+    const el = document.getElementById(id);
+    el.min = DATES[0] || ''; el.max = DATES[DATES.length-1] || '';
+  });
+  document.getElementById('fd').value = DATES[0] || '';
+  document.getElementById('td').value = DATES[DATES.length-1] || '';
+
+  // Badges
+  const ibCount = ROWS.filter(r => r['Direction'] === 'Inbound').length;
+  const agents = new Set(ROWS.map(r => r._agent).filter(a => a !== 'Unknown'));
+  const lists = new Set(ROWS.filter(r => r['Direction'] === 'Outbound').map(r => r._listId));
+  document.getElementById('nb-agents').textContent = agents.size;
+  document.getElementById('nb-lists').textContent = lists.size;
+  document.getElementById('nb-inbound').textContent = ibCount;
+
+  // Show UI
+  document.getElementById('topbar-file').style.display = 'flex';
+  document.getElementById('file-name-display').textContent = fname;
+  document.getElementById('btn-new-file').style.display = 'inline-flex';
+  document.getElementById('btn-download').style.display = 'inline-flex';
+  document.getElementById('screen-upload').style.display = 'none';
+  document.getElementById('screen-dashboard').style.display = 'block';
+  document.getElementById('upload-processing').style.display = 'none';
+
+  LIST_NAMES = {}; // reset names on new file
+  buildMapper();
+  render();
+}
+
+function resetDashboard() {
+  if (!confirm('Load a new file? Current data will be cleared.')) return;
+  ROWS = []; DATES = []; CUR = 'all';
+  Object.values(CHARTS).forEach(c => { try { c.destroy(); } catch(e){} });
+  document.getElementById('screen-upload').style.display = 'flex';
+  document.getElementById('screen-dashboard').style.display = 'none';
+  document.getElementById('topbar-file').style.display = 'none';
+  document.getElementById('btn-new-file').style.display = 'none';
+  document.getElementById('btn-download').style.display = 'none';
+  document.getElementById('file-input').value = '';
+}
+
+// ─── FILTERING ───────────────────────────────────
+function getFiltered() {
+  if (CUR === 'all') return ROWS;
+  if (CUR.startsWith('range:')) {
+    const [, f, t] = CUR.split(':');
+    return ROWS.filter(r => r._date >= f && r._date <= t);
+  }
+  return ROWS.filter(r => r._date === CUR);
+}
+
+function setDate(key) {
+  CUR = key;
+  document.querySelectorAll('.date-pill').forEach(p => p.classList.toggle('active', p.dataset.key === key));
+  if (key === 'all') {
+    document.getElementById('fd').value = DATES[0] || '';
+    document.getElementById('td').value = DATES[DATES.length-1] || '';
+  } else {
+    document.getElementById('fd').value = key;
+    document.getElementById('td').value = key;
+  }
+  render();
+}
+
+function onDateChange() {
+  const f = document.getElementById('fd').value, t = document.getElementById('td').value;
+  if (!f || !t) return;
+  if (f === t && DATES.includes(f)) CUR = f;
+  else CUR = `range:${f}:${t}`;
+  document.querySelectorAll('.date-pill').forEach(p => {
+    p.classList.toggle('active', p.dataset.key === CUR || (CUR === 'all' && p.dataset.key === 'all'));
+  });
+  render();
+}
+
+// ─── NAVIGATION ──────────────────────────────────
+let CUR_PANEL = 'overview';
+function showPanel(name) {
+  CUR_PANEL = name;
+  document.querySelectorAll('.panel').forEach(p => p.classList.toggle('active', p.id === 'panel-' + name));
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.toggle('active', n.id === 'nav-' + name));
+  renderPanel(name);
+}
+
+// ─── RENDER ──────────────────────────────────────
+function render() {
+  const rows = getFiltered();
+  document.getElementById('filter-info').textContent = `${rows.length.toLocaleString()} calls in view`;
+  renderPanel(CUR_PANEL);
+}
+
+function renderPanel(name) {
+  const rows = getFiltered();
+  if (name === 'overview') renderOverview(rows);
+  else if (name === 'agents') renderAgents(rows);
+  else if (name === 'leadlist') renderLeadList(rows);
+  else if (name === 'inbound') renderInbound(rows);
+  else if (name === 'disposition') renderDisposition(rows);
+  else if (name === 'calllog') renderCallLog(rows);
+}
+
+function dk(key) { if (CHARTS[key]) { try { CHARTS[key].destroy(); } catch(e){} delete CHARTS[key]; } }
+
+// ── OVERVIEW ──────────────────────────────────────
+function renderOverview(rows) {
+  const total = rows.length;
+  const outbound = rows.filter(r => r['Direction'] === 'Outbound');
+  const inbound = rows.filter(r => r['Direction'] === 'Inbound');
+  const answered = rows.filter(r => r['Call Status'] === 'Answered').length;
+  const missed = rows.filter(r => r['Call Status'] === 'Missed').length;
+  const unique = new Set(rows.map(r => r['Customer Number'])).size;
+  const conv = rows.filter(r => r._cat === 'Converted').length;
+  const inter = rows.filter(r => r._cat === 'Interested').length;
+  const ni = rows.filter(r => r._cat === 'Not Interested').length;
+  const nr = rows.filter(r => r._cat === 'Not Responded').length;
+  const cb = rows.filter(r => r._cat === 'Call Back').length;
+  const ud = rows.filter(r => r._cat === 'Undisposed').length;
+  const ot = rows.filter(r => r._cat === 'Others').length;
+  const cpr = answered > 0 ? ((conv/answered)*100).toFixed(1) : '0.0';
+  const ansRows = rows.filter(r => r['Call Status'] === 'Answered');
+  const avgTalk = fmtSec(ansRows.length ? ansRows.reduce((s,r) => s + r._convSec, 0) / ansRows.length : 0);
+  const agents = new Set(rows.map(r => r._agent).filter(a => a !== 'Unknown')).size;
+
+  document.getElementById('kpi-main').innerHTML = `
+    <div class="kpi-card"><div class="kpi-accent" style="--kc:#2563EB"></div><div class="kpi-icon">📞</div><div class="kpi-label">Total Calls</div><div class="kpi-value" style="--kc:#2563EB">${total.toLocaleString()}</div><div class="kpi-sub">${outbound.length} out · ${inbound.length} in</div></div>
+    <div class="kpi-card"><div class="kpi-accent" style="--kc:var(--green)"></div><div class="kpi-icon">✅</div><div class="kpi-label">Answered</div><div class="kpi-value" style="--kc:var(--green)">${answered.toLocaleString()}</div><div class="kpi-sub"><span class="tag tag-up">${pct(answered,total)}%</span> answer rate</div></div>
+    <div class="kpi-card"><div class="kpi-accent" style="--kc:var(--red)"></div><div class="kpi-icon">❌</div><div class="kpi-label">Missed</div><div class="kpi-value" style="--kc:var(--red)">${missed.toLocaleString()}</div><div class="kpi-sub"><span class="tag tag-down">${pct(missed,total)}%</span> miss rate</div></div>
+    <div class="kpi-card"><div class="kpi-accent" style="--kc:var(--purple)"></div><div class="kpi-icon">👤</div><div class="kpi-label">Active Agents</div><div class="kpi-value" style="--kc:var(--purple)">${agents}</div></div>
+    <div class="kpi-card"><div class="kpi-accent" style="--kc:var(--amber)"></div><div class="kpi-icon">🎯</div><div class="kpi-label">CPR %</div><div class="kpi-value" style="--kc:var(--amber)">${cpr}%</div><div class="kpi-sub">Converted ÷ Answered</div></div>
+    <div class="kpi-card"><div class="kpi-accent" style="--kc:var(--teal)"></div><div class="kpi-icon">⏱</div><div class="kpi-label">Avg Talk Time</div><div class="kpi-value" style="--kc:var(--teal);font-size:20px">${avgTalk}</div><div class="kpi-sub">answered calls only</div></div>
+    <div class="kpi-card"><div class="kpi-accent" style="--kc:var(--ink3)"></div><div class="kpi-icon">📱</div><div class="kpi-label">Unique Numbers</div><div class="kpi-value" style="--kc:var(--ink2)">${unique.toLocaleString()}</div><div class="kpi-sub">${pct(unique,total)}% unique</div></div>
+  `;
+  document.getElementById('kpi-outcomes').innerHTML = `
+    <div class="kpi-card"><div class="kpi-accent" style="--kc:var(--green)"></div><div class="kpi-label">🏆 Converted</div><div class="kpi-value" style="--kc:var(--green)">${conv}</div><div class="kpi-sub">${pct(conv,total)}% of total</div></div>
+    <div class="kpi-card"><div class="kpi-accent" style="--kc:var(--blue)"></div><div class="kpi-label">💰 Interested</div><div class="kpi-value" style="--kc:var(--blue)">${inter}</div><div class="kpi-sub">Send Payment Link</div></div>
+    <div class="kpi-card"><div class="kpi-accent" style="--kc:var(--red)"></div><div class="kpi-label">🚫 Not Interested</div><div class="kpi-value" style="--kc:var(--red)">${ni}</div><div class="kpi-sub">${pct(ni,total)}% of total</div></div>
+    <div class="kpi-card"><div class="kpi-accent" style="--kc:#94A3B8"></div><div class="kpi-label">📵 Not Responded</div><div class="kpi-value" style="--kc:#64748B">${nr}</div><div class="kpi-sub">${pct(nr,total)}% of total</div></div>
+    <div class="kpi-card"><div class="kpi-accent" style="--kc:var(--amber)"></div><div class="kpi-label">🔁 Call Back</div><div class="kpi-value" style="--kc:var(--amber)">${cb}</div><div class="kpi-sub">${pct(cb,total)}% of total</div></div>
+    <div class="kpi-card"><div class="kpi-accent" style="--kc:var(--purple)"></div><div class="kpi-label">⏸ Undisposed</div><div class="kpi-value" style="--kc:var(--purple)">${ud}</div></div>
+    <div class="kpi-card"><div class="kpi-accent" style="--kc:#94A3B8"></div><div class="kpi-label">📋 Others</div><div class="kpi-value" style="--kc:#64748B">${ot}</div></div>
+  `;
+
+  // Donut
+  const dlbls = ['Converted','Interested','Not Interested','Not Responded','Call Back','Undisposed','Others'];
+  const dvals = [conv,inter,ni,nr,cb,ud,ot];
+  const dcols = dlbls.map(l => CAT_CFG[l]?.dot || '#94A3B8');
+  document.getElementById('donut-legend').innerHTML = dlbls.map((l,i) =>
+    `<span class="leg"><span class="leg-dot" style="background:${dcols[i]}"></span>${l}: <b>${dvals[i]}</b></span>`).join('');
+  dk('donut');
+  CHARTS.donut = new Chart(document.getElementById('c-donut'), {
+    type:'doughnut',
+    data:{labels:dlbls,datasets:[{data:dvals,backgroundColor:dcols,borderWidth:3,borderColor:'#fff',hoverOffset:4}]},
+    options:{responsive:true,maintainAspectRatio:false,cutout:'62%',plugins:{legend:{display:false},tooltip:{callbacks:{label:ctx=>` ${ctx.label}: ${ctx.raw} (${pct(ctx.raw,total)}%)`}}}}
+  });
+
+  // Hourly
+  const hMap = {};
+  rows.forEach(r => { if (r._hour >= 0) { if (!hMap[r._hour]) hMap[r._hour] = {a:0,m:0}; if (r['Call Status']==='Answered') hMap[r._hour].a++; else hMap[r._hour].m++; } });
+  const hKeys = Object.keys(hMap).map(Number).sort((a,b)=>a-b);
+  dk('hourly');
+  CHARTS.hourly = new Chart(document.getElementById('c-hourly'), {
+    type:'bar',
+    data:{labels:hKeys.map(h=>`${h}:00`),datasets:[{label:'Answered',data:hKeys.map(h=>hMap[h].a),backgroundColor:'#0F9B6E',borderRadius:4,stack:'s'},{label:'Missed',data:hKeys.map(h=>hMap[h].m),backgroundColor:'#FCA5A5',borderRadius:4,stack:'s'}]},
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:true,position:'bottom',labels:{font:{size:11},boxWidth:10,usePointStyle:true}}},scales:{x:{grid:{display:false},ticks:{font:{size:11}},stacked:true},y:{grid:{color:'#F1F5F9'},ticks:{font:{size:11}},stacked:true}}}
+  });
+
+  // Circles
+  const cMap = {};
+  rows.forEach(r => { const c = String(r['Circle']||'').trim(); if (c && c!=='nan') cMap[c]=(cMap[c]||0)+1; });
+  const cEntries = Object.entries(cMap).sort((a,b)=>b[1]-a[1]).slice(0,8);
+  dk('circles');
+  CHARTS.circles = new Chart(document.getElementById('c-circles'), {
+    type:'bar',
+    data:{labels:cEntries.map(x=>x[0]),datasets:[{data:cEntries.map(x=>x[1]),backgroundColor:PALETTE.slice(0,cEntries.length),borderRadius:5}]},
+    options:{indexAxis:'y',responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{grid:{color:'#F1F5F9'},ticks:{font:{size:11}}},y:{ticks:{font:{size:11}}}}}
+  });
+
+  // Operators
+  const oMap = {};
+  rows.forEach(r => { const o = String(r['Operator']||'').trim(); if (o && o!=='nan') oMap[o]=(oMap[o]||0)+1; });
+  const oEntries = Object.entries(oMap).sort((a,b)=>b[1]-a[1]).slice(0,8);
+  dk('operators');
+  CHARTS.operators = new Chart(document.getElementById('c-operators'), {
+    type:'bar',
+    data:{labels:oEntries.map(x=>x[0]),datasets:[{label:'Calls',data:oEntries.map(x=>x[1]),backgroundColor:PALETTE.slice(0,oEntries.length),borderRadius:5}]},
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:ctx=>` ${ctx.raw} (${pct(ctx.raw,total)}%)`}}},scales:{x:{grid:{display:false},ticks:{font:{size:11}}},y:{grid:{color:'#F1F5F9'},ticks:{font:{size:11}}}}}
+  });
+}
+
+// ── AGENTS ────────────────────────────────────────
+function buildAgentData(rows) {
+  const agMap = {};
+  rows.forEach(r => {
+    const a = r._agent; if (a === 'Unknown') return;
+    if (!agMap[a]) agMap[a] = {name:a,total:0,answered:0,missed:0,conv:0,int:0,ni:0,nr:0,cb:0,ud:0,ot:0,sec:0};
+    const m = agMap[a]; m.total++;
+    if (r['Call Status']==='Answered') { m.answered++; m.sec += r._convSec; } else m.missed++;
+    ({Converted:'conv',Interested:'int','Not Interested':'ni','Not Responded':'nr','Call Back':'cb',Undisposed:'ud',Others:'ot'})[r._cat] && m[({Converted:'conv',Interested:'int','Not Interested':'ni','Not Responded':'nr','Call Back':'cb',Undisposed:'ud',Others:'ot'})[r._cat]]++;
+  });
+  return Object.values(agMap).sort((a,b) => b.total - a.total);
+}
+
+function renderAgents(rows) {
+  const ags = buildAgentData(rows);
+  const h = Math.max(200, ags.length * 65 + 60);
+  document.getElementById('agent-chart-wrap').style.height = h + 'px';
+  dk('agents');
+  CHARTS.agents = new Chart(document.getElementById('c-agents'), {
+    type:'bar',
+    data:{labels:ags.map(a=>a.name),datasets:[{label:'Total',data:ags.map(a=>a.total),backgroundColor:'#BFDBFE',borderRadius:4},{label:'Answered',data:ags.map(a=>a.answered),backgroundColor:'#0F9B6E',borderRadius:4},{label:'Missed',data:ags.map(a=>a.missed),backgroundColor:'#FCA5A5',borderRadius:4}]},
+    options:{indexAxis:'y',responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{grid:{color:'#F1F5F9'}},y:{ticks:{font:{size:12,weight:'600'}}}}}
+  });
+  dk('cpr');
+  CHARTS.cpr = new Chart(document.getElementById('c-cpr'), {
+    type:'bar',
+    data:{labels:ags.map(a=>a.name),datasets:[{label:'CPR %',data:ags.map(a=>a.answered>0?+((a.conv/a.answered)*100).toFixed(1):0),backgroundColor:'#0F9B6E',borderRadius:6}]},
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:ctx=>` CPR: ${ctx.raw}%`}}},scales:{x:{grid:{display:false}},y:{grid:{color:'#F1F5F9'},ticks:{callback:v=>v+'%',font:{size:11}}}}}
+  });
+
+  document.getElementById('t-agents').innerHTML = ags.map((a,i) => {
+    const [fg,bg] = AG_PAL[i % AG_PAL.length];
+    const ar = ((a.answered/a.total)*100).toFixed(1);
+    const arc = +ar>=55?'var(--green)':+ar>=40?'var(--amber)':'var(--red)';
+    const cprVal = a.answered>0?((a.conv/a.answered)*100).toFixed(1):0;
+    const init = a.name.split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase();
+    return `<tr>
+      <td><div class="agent-cell"><div class="avatar" style="background:${bg};color:${fg}">${init}</div><div><div style="font-weight:700">${a.name}</div><div style="font-size:10px;color:var(--ink4)">${a.total} calls</div></div></div></td>
+      <td class="r"><b>${a.total}</b></td><td class="r">${a.answered}</td><td class="r">${a.missed}</td>
+      <td><div class="bar-cell"><span style="font-weight:700;color:${arc};min-width:40px">${ar}%</span><div class="mini-bar"><div class="mini-fill" style="width:${ar}%;background:${arc}"></div></div></div></td>
+      <td class="r"><span class="badge b-green">${a.conv}</span></td>
+      <td class="r"><span class="badge b-blue">${a.int}</span></td>
+      <td class="r"><span class="badge b-red">${a.ni}</span></td>
+      <td class="r">${a.nr}</td>
+      <td class="r"><span class="badge b-amber">${a.cb}</span></td>
+      <td class="r">${a.ud}</td><td class="r">${a.ot}</td>
+      <td class="r"><span class="badge ${+cprVal>=5?'b-green':+cprVal>=2?'b-amber':'b-gray'}">${cprVal}%</span></td>
+      <td>${fmtSec(a.answered>0?a.sec/a.answered:0)}</td>
+    </tr>`;
+  }).join('');
+
+  const tot = ags.reduce((s,a) => ({ total:s.total+a.total,answered:s.answered+a.answered,missed:s.missed+a.missed,conv:s.conv+a.conv,int:s.int+a.int,ni:s.ni+a.ni,nr:s.nr+a.nr,cb:s.cb+a.cb,ud:s.ud+a.ud,ot:s.ot+a.ot }), {total:0,answered:0,missed:0,conv:0,int:0,ni:0,nr:0,cb:0,ud:0,ot:0});
+  document.getElementById('tf-agents').innerHTML = `<tr><td><b>TOTALS</b></td><td class="r"><b>${tot.total}</b></td><td class="r">${tot.answered}</td><td class="r">${tot.missed}</td><td></td><td class="r">${tot.conv}</td><td class="r">${tot.int}</td><td class="r">${tot.ni}</td><td class="r">${tot.nr}</td><td class="r">${tot.cb}</td><td class="r">${tot.ud}</td><td class="r">${tot.ot}</td><td></td><td></td></tr>`;
+}
+
+// ── LEAD LIST ─────────────────────────────────────
+function buildLLData(rows) {
+  const out = rows.filter(r => r['Direction'] === 'Outbound');
+  const llMap = {};
+  out.forEach(r => {
+    const id = r._listId;
+    if (!llMap[id]) llMap[id] = {id,total:0,answered:0,missed:0,conv:0,int:0,ni:0,nr:0,cb:0,ud:0,ot:0,agents:new Set()};
+    const m = llMap[id]; m.total++; m.agents.add(r._agent);
+    if (r['Call Status']==='Answered') m.answered++; else m.missed++;
+    const k = {Converted:'conv',Interested:'int','Not Interested':'ni','Not Responded':'nr','Call Back':'cb',Undisposed:'ud',Others:'ot'}[r._cat];
+    if (k) m[k]++;
+  });
+  return Object.values(llMap).sort((a,b) => b.total - a.total);
+}
+
+function renderLeadList(rows) {
+  const lls = buildLLData(rows);
+  const maxT = Math.max(...lls.map(l => l.total), 1);
+  document.getElementById('ll-cards').innerHTML = lls.map((l,i) => {
+    const [ac,al] = LL_PAL[i % LL_PAL.length];
+    const ar = l.total > 0 ? ((l.answered/l.total)*100).toFixed(1) : 0;
+    const cprVal = l.answered > 0 ? ((l.conv/l.answered)*100).toFixed(1) : 0;
+    return `<div class="ll-card">
+      <div class="ll-head" style="--lc:${ac}">
+        <div>
+          <div class="ll-id">${getListName(l.id)}</div>
+          <div class="ll-meta" style="display:flex;align-items:center;gap:6px;margin-top:3px">
+            <span style="font-family:'DM Mono',monospace;font-size:10px;background:rgba(0,0,0,.06);padding:1px 6px;border-radius:3px">ID: ${l.id}</span>
+            <span>${l.agents.size} agent${l.agents.size!==1?'s':''} · ${pct(l.total,rows.filter(r=>r['Direction']==='Outbound').length)}% of outbound</span>
+          </div>
+        </div>
+        <div class="ll-total" style="--lc:${ac}">${l.total}</div>
+      </div>
+      <div class="ll-bar"><div class="ll-bar-fill" style="width:${(l.total/maxT*100).toFixed(0)}%;background:${ac}"></div></div>
+      <div class="ll-row"><span class="ll-key">✅ Answered</span><span class="ll-val" style="color:var(--green)">${l.answered} <span style="font-weight:400;color:var(--ink4)">(${ar}%)</span></span></div>
+      <div class="ll-row"><span class="ll-key">❌ Missed</span><span class="ll-val" style="color:var(--red)">${l.missed}</span></div>
+      <div class="ll-row"><span class="ll-key">🏆 Converted</span><span class="ll-val" style="color:var(--green)">${l.conv}</span></div>
+      <div class="ll-row"><span class="ll-key">💰 Interested</span><span class="ll-val" style="color:var(--blue)">${l.int}</span></div>
+      <div class="ll-row"><span class="ll-key">🚫 Not Interested</span><span class="ll-val" style="color:var(--red)">${l.ni}</span></div>
+      <div class="ll-row"><span class="ll-key">📵 Not Responded</span><span class="ll-val">${l.nr}</span></div>
+      <div class="ll-row"><span class="ll-key">🔁 Call Back</span><span class="ll-val" style="color:var(--amber)">${l.cb}</span></div>
+      <div class="ll-row"><span class="ll-key">🎯 CPR %</span><span class="ll-val" style="color:${+cprVal>=5?'var(--green)':+cprVal>=2?'var(--amber)':'var(--ink4)'}">${cprVal}%</span></div>
+    </div>`;
+  }).join('');
+
+  dk('llbar');
+  CHARTS.llbar = new Chart(document.getElementById('c-ll-bar'), {
+    type:'bar',
+    data:{labels:lls.map(l=>getListName(l.id)),datasets:[{label:'Total',data:lls.map(l=>l.total),backgroundColor:'#BFDBFE',borderRadius:4},{label:'Answered',data:lls.map(l=>l.answered),backgroundColor:'#0F9B6E',borderRadius:4},{label:'Missed',data:lls.map(l=>l.missed),backgroundColor:'#FCA5A5',borderRadius:4}]},
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:true,position:'bottom',labels:{font:{size:11},boxWidth:10,usePointStyle:true}}},scales:{x:{grid:{display:false}},y:{grid:{color:'#F1F5F9'}}}}
+  });
+  dk('lloutcome');
+  CHARTS.lloutcome = new Chart(document.getElementById('c-ll-outcome'), {
+    type:'bar',
+    data:{labels:lls.map(l=>getListName(l.id)),datasets:[
+      {label:'Converted',data:lls.map(l=>l.conv),backgroundColor:'#0F9B6E',borderRadius:3,stack:'s'},
+      {label:'Interested',data:lls.map(l=>l.int),backgroundColor:'#3B82F6',borderRadius:3,stack:'s'},
+      {label:'Not Interested',data:lls.map(l=>l.ni),backgroundColor:'#EF4444',borderRadius:3,stack:'s'},
+      {label:'Not Responded',data:lls.map(l=>l.nr),backgroundColor:'#CBD5E1',borderRadius:3,stack:'s'},
+      {label:'Call Back',data:lls.map(l=>l.cb),backgroundColor:'#F59E0B',borderRadius:3,stack:'s'},
+      {label:'Others',data:lls.map(l=>l.ot),backgroundColor:'#E2E8F0',borderRadius:3,stack:'s'},
+    ]},
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:true,position:'bottom',labels:{font:{size:10},boxWidth:10,usePointStyle:true}}},scales:{x:{grid:{display:false},stacked:true},y:{grid:{color:'#F1F5F9'},stacked:true}}}
+  });
+
+  const outTotal = rows.filter(r=>r['Direction']==='Outbound').length;
+  document.getElementById('t-ll').innerHTML = lls.map((l,i) => {
+    const ar = l.total>0?((l.answered/l.total)*100).toFixed(1):0;
+    const cprVal = l.answered>0?((l.conv/l.answered)*100).toFixed(1):0;
+    const arc = +ar>=55?'var(--green)':+ar>=40?'var(--amber)':'var(--red)';
+    return `<tr>
+      <td><div style="font-weight:700">${getListName(l.id)}</div><div style="font-size:10px;color:var(--ink4)">ID: ${l.id} · ${l.agents.size} agents</div></td>
+      <td class="r"><b>${l.total}</b></td><td class="r">${l.answered}</td><td class="r">${l.missed}</td>
+      <td><div class="bar-cell"><span style="font-weight:700;color:${arc};min-width:40px">${ar}%</span><div class="mini-bar"><div class="mini-fill" style="width:${ar}%;background:${arc}"></div></div></div></td>
+      <td class="r"><span class="badge b-green">${l.conv}</span></td>
+      <td class="r"><span class="badge b-blue">${l.int}</span></td>
+      <td class="r"><span class="badge b-red">${l.ni}</span></td>
+      <td class="r">${l.nr}</td>
+      <td class="r"><span class="badge b-amber">${l.cb}</span></td>
+      <td class="r"><span class="badge ${+cprVal>=5?'b-green':+cprVal>=2?'b-amber':'b-gray'}">${cprVal}%</span></td>
+    </tr>`;
+  }).join('');
+  document.getElementById('tf-ll').innerHTML = `<tr><td><b>TOTAL (Outbound)</b></td><td class="r"><b>${outTotal}</b></td><td class="r">${lls.reduce((s,l)=>s+l.answered,0)}</td><td class="r">${lls.reduce((s,l)=>s+l.missed,0)}</td><td></td><td class="r">${lls.reduce((s,l)=>s+l.conv,0)}</td><td class="r">${lls.reduce((s,l)=>s+l.int,0)}</td><td class="r">${lls.reduce((s,l)=>s+l.ni,0)}</td><td class="r">${lls.reduce((s,l)=>s+l.nr,0)}</td><td class="r">${lls.reduce((s,l)=>s+l.cb,0)}</td><td></td></tr>`;
+}
+
+// ── INBOUND ───────────────────────────────────────
+function renderInbound(rows) {
+  const ib = rows.filter(r => r['Direction'] === 'Inbound');
+  const ibAns = ib.filter(r => r['Call Status'] === 'Answered');
+  const ibMiss = ib.filter(r => r['Call Status'] === 'Missed');
+  const avgT = ibAns.length ? ibAns.reduce((s,r)=>s+r._convSec,0)/ibAns.length : 0;
+  const queues = [...new Set(ib.map(r=>r._queue))];
+
+  document.getElementById('nb-inbound').textContent = ib.length;
+  document.getElementById('ib-stats').innerHTML = `
+    <div class="ib-stat" style="border-top:3px solid var(--blue)"><div class="ib-val" style="color:var(--blue)">${ib.length}</div><div class="ib-lbl">Total Inbound</div></div>
+    <div class="ib-stat" style="border-top:3px solid var(--green)"><div class="ib-val" style="color:var(--green)">${ibAns.length}</div><div class="ib-lbl">Answered (${pct(ibAns.length,ib.length)}%)</div></div>
+    <div class="ib-stat" style="border-top:3px solid var(--red)"><div class="ib-val" style="color:var(--red)">${ibMiss.length}</div><div class="ib-lbl">Missed (${pct(ibMiss.length,ib.length)}%)</div></div>
+    <div class="ib-stat" style="border-top:3px solid var(--teal)"><div class="ib-val" style="color:var(--teal);font-size:18px">${fmtSec(avgT)}</div><div class="ib-lbl">Avg Talk Time</div></div>
+    <div class="ib-stat" style="border-top:3px solid var(--purple)"><div class="ib-val" style="color:var(--purple)">${queues.length}</div><div class="ib-lbl">Queue${queues.length!==1?'s':''}</div></div>
+  `;
+
+  const hMap = {};
+  ib.forEach(r => { if (r._hour>=0) { if (!hMap[r._hour]) hMap[r._hour]={a:0,m:0}; if (r['Call Status']==='Answered') hMap[r._hour].a++; else hMap[r._hour].m++; } });
+  const hKeys = Object.keys(hMap).map(Number).sort((a,b)=>a-b);
+  dk('ibhourly');
+  CHARTS.ibhourly = new Chart(document.getElementById('c-ib-hourly'), {
+    type:'bar',
+    data:{labels:hKeys.map(h=>`${h}:00`),datasets:[{label:'Answered',data:hKeys.map(h=>hMap[h].a),backgroundColor:'#0F9B6E',borderRadius:4,stack:'s'},{label:'Missed',data:hKeys.map(h=>hMap[h].m),backgroundColor:'#FCA5A5',borderRadius:4,stack:'s'}]},
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:true,position:'bottom',labels:{font:{size:11},boxWidth:10,usePointStyle:true}}},scales:{x:{grid:{display:false},stacked:true},y:{grid:{color:'#F1F5F9'},stacked:true}}}
+  });
+
+  const agM = {};
+  ib.forEach(r => { const a = r._agent; if (!agM[a]) agM[a]={a:0,m:0}; if (r['Call Status']==='Answered') agM[a].a++; else agM[a].m++; });
+  const agK = Object.keys(agM);
+  dk('ibagent');
+  CHARTS.ibagent = new Chart(document.getElementById('c-ib-agent'), {
+    type:'bar',
+    data:{labels:agK,datasets:[{label:'Answered',data:agK.map(a=>agM[a].a),backgroundColor:'#0F9B6E',borderRadius:4},{label:'Missed',data:agK.map(a=>agM[a].m),backgroundColor:'#FCA5A5',borderRadius:4}]},
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:true,position:'bottom',labels:{font:{size:11},boxWidth:10,usePointStyle:true}}},scales:{x:{grid:{display:false}},y:{grid:{color:'#F1F5F9'}}}}
+  });
+
+  document.getElementById('t-inbound').innerHTML = ib.map(r => {
+    const ans = r['Call Status'] === 'Answered';
+    return `<tr>
+      <td style="font-size:11px;color:var(--ink4)">${r._timeStr}</td>
+      <td><b style="color:${r._agent==='Unknown'?'var(--ink4)':'var(--green-d)'}">${r._agent}</b></td>
+      <td class="mono" style="font-size:11px">${String(r['Customer Number']||'').replace(/(\d{2})\d+(\d{4})/, '$1****$2')}</td>
+      <td style="font-size:11px;color:var(--ink4)">${r._queue}</td>
+      <td><span style="display:inline-flex;align-items:center;gap:4px;font-weight:700;font-size:11px;color:${ans?'var(--green)':'var(--red)'}"><span style="width:6px;height:6px;border-radius:50%;background:currentColor;display:inline-block"></span>${r['Call Status']}</span></td>
+      <td style="font-size:11px;color:var(--ink3)">${r._dispo || '—'}</td>
+      <td>${fmtSec(r._convSec)}</td>
+    </tr>`;
+  }).join('');
+}
+
+// ── DISPOSITION ───────────────────────────────────
+function renderDisposition(rows) {
+  const total = rows.length;
+  const dispMap = {};
+  rows.forEach(r => { const k = r._dispo+'||'+r._cat; if (!dispMap[k]) dispMap[k]={d:r._dispo,c:r._cat,n:0}; dispMap[k].n++; });
+  const disps = Object.values(dispMap).sort((a,b)=>b.n-a.n);
+  const maxN = disps[0]?.n || 1;
+
+  document.getElementById('t-disp-all').innerHTML = disps.map(d => {
+    const cs = CAT_CFG[d.c] || CAT_CFG['Others'];
+    const bw = Math.round(d.n/maxN*100);
+    return `<tr>
+      <td style="font-weight:500">${d.d}</td>
+      <td><span class="disp-cat" style="background:${cs.bg};color:${cs.fg}">${d.c}</span></td>
+      <td class="r"><b>${d.n}</b></td>
+      <td style="font-size:11px;color:var(--ink4)">${pct(d.n,total)}%</td>
+      <td><div style="height:5px;background:var(--surface2);border-radius:3px;overflow:hidden;min-width:100px"><div style="width:${bw}%;height:100%;background:${cs.dot};border-radius:3px"></div></div></td>
+    </tr>`;
+  }).join('');
+
+  const agMap = {};
+  rows.forEach(r => { const a = r._agent; if (a==='Unknown') return; if (!agMap[a]) agMap[a]=[]; agMap[a].push(r); });
+  document.getElementById('dg-agents').innerHTML = Object.entries(agMap).sort((a,b)=>b[1].length-a[1].length).map(([ag,agRows],i) => {
+    const [fg,bg] = AG_PAL[i % AG_PAL.length];
+    const dm = {};
+    agRows.forEach(r => { const k=r._dispo+'||'+r._cat; if (!dm[k]) dm[k]={d:r._dispo,c:r._cat,n:0}; dm[k].n++; });
+    const ds = Object.values(dm).sort((a,b)=>b.n-a.n);
+    const init = ag.split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase();
+    return `<div class="disp-card">
+      <div class="disp-head"><div class="avatar" style="background:${bg};color:${fg};width:26px;height:26px;font-size:9px">${init}</div><div><div class="disp-agent">${ag}</div><div class="disp-count">${agRows.length} calls</div></div></div>
+      ${ds.map(d => { const cs=CAT_CFG[d.c]||CAT_CFG['Others']; return `<div class="disp-row"><span class="disp-name">${d.d}</span><span class="disp-cat" style="background:${cs.bg};color:${cs.fg}">${d.c}</span><span class="disp-num">${d.n}</span></div>`; }).join('')}
+    </div>`;
+  }).join('');
+}
+
+// ── CALL LOG ─────────────────────────────────────
+function renderCallLog(rows) {
+  document.getElementById('log-count').textContent = `— ${rows.length.toLocaleString()} records`;
+  const CAT_COL = {'Converted':'var(--green-d)','Interested':'var(--blue)','Not Interested':'var(--red)','Not Responded':'var(--ink4)','Call Back':'var(--amber)'};
+  document.getElementById('t-log').innerHTML = rows.map(r => {
+    const ans = r['Call Status'] === 'Answered';
+    const isOut = r['Direction'] === 'Outbound';
+    const catFg = CAT_COL[r._cat] || 'var(--ink3)';
+    return `<tr class="${ans?'log-answered':'log-missed'}">
+      <td class="mono" style="font-size:11px">${r._timeStr}</td>
+      <td><span style="font-size:11px;font-weight:600;color:${isOut?'var(--blue)':'var(--amber)'}">${r['Direction']}</span></td>
+      <td><b style="font-size:12px;color:${r._agent==='Unknown'?'var(--ink4)':'var(--ink)'}">${r._agent}</b></td>
+      <td class="mono" style="font-size:11px">${String(r['Customer Number']||'').replace(/(\d{2})\d+(\d{4})/,'$1****$2')}</td>
+      <td style="font-size:12px">${String(r['Customer Name']||'').slice(0,20)}</td>
+      <td><span style="display:inline-flex;align-items:center;gap:4px;font-size:11px;font-weight:700;color:${ans?'var(--green)':'var(--red)'}"><span style="width:6px;height:6px;border-radius:50%;background:currentColor;display:inline-block"></span>${r['Call Status']}</span></td>
+      <td style="font-size:11px;color:var(--ink3);max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${r._dispo||'—'}</td>
+      <td><span style="font-size:11px;font-weight:700;color:${catFg}">${r._cat}</span></td>
+      <td>${fmtSec(r._convSec)}</td>
+      <td style="font-size:11px"><div style="font-weight:600;color:var(--ink2)">${getListName(r._listId)}</div><div style="font-size:10px;color:var(--ink4);font-family:'DM Mono',monospace">${r._listId}</div></td>
+      <td style="font-size:11px;color:var(--ink4)">${String(r['Circle']||'').slice(0,16)}</td>
+      <td style="font-size:11px;color:var(--ink4)">${String(r['Operator']||'').slice(0,14)}</td>
+    </tr>`;
+  }).join('');
+}
+
+// ══════════════════════════════════════════════════
+// EXCEL DOWNLOAD
+// ══════════════════════════════════════════════════
+function downloadExcel() {
+  const rows = getFiltered();
+  const total = rows.length;
+  const outbound = rows.filter(r => r['Direction'] === 'Outbound');
+  const inbound = rows.filter(r => r['Direction'] === 'Inbound');
+  const answered = rows.filter(r => r['Call Status'] === 'Answered').length;
+  const missed = rows.filter(r => r['Call Status'] === 'Missed').length;
+  const conv = rows.filter(r => r._cat === 'Converted').length;
+  const inter = rows.filter(r => r._cat === 'Interested').length;
+  const ni = rows.filter(r => r._cat === 'Not Interested').length;
+  const nr = rows.filter(r => r._cat === 'Not Responded').length;
+  const cb = rows.filter(r => r._cat === 'Call Back').length;
+  const ud = rows.filter(r => r._cat === 'Undisposed').length;
+  const ot = rows.filter(r => r._cat === 'Others').length;
+  const cpr = answered > 0 ? ((conv/answered)*100).toFixed(1) : '0.0';
+  const ansRows = rows.filter(r => r['Call Status'] === 'Answered');
+  const avgT = fmtSec(ansRows.length ? ansRows.reduce((s,r)=>s+r._convSec,0)/ansRows.length : 0);
+  const agents = new Set(rows.map(r=>r._agent).filter(a=>a!=='Unknown')).size;
+
+  const wb = XLSX.utils.book_new();
+
+  // Style helper – returns a cell object with full styling
+  function C(value, opts = {}) {
+    return {
+      v: value,
+      t: typeof value === 'number' ? 'n' : 's',
+      s: {
+        font: { name: 'Calibri', bold: opts.bold||false, sz: opts.sz||11, color: { rgb: opts.fg || '111827' }, italic: opts.italic||false },
+        fill: { patternType: 'solid', fgColor: { rgb: opts.bg || 'FFFFFF' } },
+        alignment: { horizontal: opts.ha || 'left', vertical: 'center', wrapText: opts.wrap || false },
+        border: {
+          top:    { style: 'thin', color: { rgb: 'D1D5DB' } },
+          bottom: { style: 'thin', color: { rgb: 'D1D5DB' } },
+          left:   { style: 'thin', color: { rgb: 'D1D5DB' } },
+          right:  { style: 'thin', color: { rgb: 'D1D5DB' } },
+        }
+      }
+    };
+  }
+  function H(v) { return C(v, { bold:true, bg:'064E3B', fg:'FFFFFF', sz:10, ha:'center' }); }
+  function TitleCell(v) { return C(v, { bold:true, bg:'064E3B', fg:'FFFFFF', sz:18, ha:'left' }); }
+  function SubCell(v) { return C(v, { italic:true, bg:'0F9B6E', fg:'FFFFFF', sz:11, ha:'left' }); }
+  const BLANK = bg => C('', { bg });
+
+  // ── SHEET 1: OVERVIEW ──
+  const ovKpis = [
+    ['📞 TOTAL CALLS', total, `${outbound.length} outbound · ${inbound.length} inbound`, '1E40AF','DBEAFE'],
+    ['✅ ANSWERED',    answered, `${pct(answered,total)}% answer rate`, '065F46','D1FAE5'],
+    ['❌ MISSED',      missed, `${pct(missed,total)}% miss rate`, '991B1B','FEE2E2'],
+    ['👤 ACTIVE AGENTS', agents, 'on this period', '5B21B6','EDE9FE'],
+    ['🎯 CPR %',       `${cpr}%`, 'Converted ÷ Answered', '92400E','FEF3C7'],
+    ['⏱ AVG TALK TIME', avgT, 'per answered call', '075985','CFFAFE'],
+    ['📱 UNIQUE NUMBERS', new Set(rows.map(r=>r['Customer Number'])).size, `${pct(new Set(rows.map(r=>r['Customer Number'])).size,total)}% unique`, '374151','F1F5F9'],
+    ['🔁 CALL BACK',   cb, `${pct(cb,total)}% of total`, '92400E','FEF3C7'],
+  ];
+  const ws1 = {};
+  // Title row
+  for (let c = 0; c < 8; c++) { const addr = XLSX.utils.encode_cell({r:0,c}); ws1[addr] = c===0 ? TitleCell('ACEPHONE CDR ANALYTICS REPORT') : BLANK('064E3B'); }
+  for (let c = 0; c < 8; c++) { const addr = XLSX.utils.encode_cell({r:1,c}); ws1[addr] = c===0 ? SubCell(`Period: ${document.getElementById('fd').value} to ${document.getElementById('td').value}  |  Campaign: NBHI CMP Leads  |  Generated: ${new Date().toLocaleDateString('en-IN')}`) : BLANK('0F9B6E'); }
+  for (let c = 0; c < 8; c++) { ws1[XLSX.utils.encode_cell({r:2,c})] = BLANK('FFFFFF'); }
+  // KPI cards (2x4 grid, each card 4 rows x 2 cols)
+  ovKpis.forEach(([lbl,val,sub,fg,bg],idx) => {
+    const startCol = (idx % 4) * 2;
+    const startRow = 3 + Math.floor(idx / 4) * 5;
+    [[lbl,true,fg,bg,10,'left'],[val,true,fg,bg,26,'center'],[sub,false,'9CA3AF',bg,10,'center'],['',false,'',bg,10,'left']].forEach(([v,bold,vfg,vbg,sz,ha],ri) => {
+      for (let c = 0; c < 2; c++) ws1[XLSX.utils.encode_cell({r:startRow+ri,c:startCol+c})] = c===0&&ri<3 ? C(ri===0?`  ${v}`:v,{bold,fg:vfg,bg:vbg,sz,ha}) : BLANK(vbg);
+    });
+  });
+  // Outcome section
+  const outStartRow = 3 + 2 * 5 + 1;
+  for (let c = 0; c < 8; c++) ws1[XLSX.utils.encode_cell({r:outStartRow,c})] = c===0 ? C('  🎯  OUTCOME BREAKDOWN',{bold:true,bg:'111827',fg:'FFFFFF',sz:13,ha:'left'}) : BLANK('111827');
+  [['OUTCOME','COUNT','% OF TOTAL','% OF ANSWERED','VISUAL BAR','','','']].forEach((row,ri) => row.forEach((v,ci) => { ws1[XLSX.utils.encode_cell({r:outStartRow+1,c:ci})] = H(v); }));
+  const outRows = [
+    ['🏆  Converted',conv,'1D9E75','D1FAE5'],['💰  Interested',inter,'1A56DB','DBEAFE'],
+    ['🚫  Not Interested',ni,'DC2626','FEE2E2'],['📵  Not Responded',nr,'475569','F1F5F9'],
+    ['🔁  Call Back',cb,'D97706','FEF3C7'],['⏸  Undisposed',ud,'7C3AED','EDE9FE'],['📋  Others',ot,'475569','F1F5F9']
+  ];
+  const maxO = Math.max(...outRows.map(o=>o[1]),1);
+  outRows.forEach(([lbl,cnt,fg,bg],i) => {
+    const r = outStartRow + 2 + i;
+    const bar = '█'.repeat(Math.round(cnt/maxO*20)) + '░'.repeat(20-Math.round(cnt/maxO*20));
+    ws1[XLSX.utils.encode_cell({r,c:0})] = C(lbl,{bold:true,bg,fg,sz:12,ha:'left'});
+    ws1[XLSX.utils.encode_cell({r,c:1})] = C(cnt,{bold:true,bg,fg,sz:14,ha:'center'});
+    ws1[XLSX.utils.encode_cell({r,c:2})] = C(`${pct(cnt,total)}%`,{bold:true,bg,fg,sz:11,ha:'center'});
+    ws1[XLSX.utils.encode_cell({r,c:3})] = C(answered>0?`${pct(cnt,answered)}%`:'—',{bg,fg:'6B7280',sz:11,ha:'center'});
+    for (let c2=4;c2<8;c2++) ws1[XLSX.utils.encode_cell({r,c:c2})] = c2===4 ? C(bar,{bg,fg,sz:9}) : BLANK(bg);
+  });
+  const lastRow1 = outStartRow + 2 + outRows.length;
+  ws1['!ref'] = XLSX.utils.encode_range({s:{r:0,c:0},e:{r:lastRow1,c:7}});
+  ws1['!merges'] = [
+    {s:{r:0,c:0},e:{r:0,c:7}},{s:{r:1,c:0},e:{r:1,c:7}},{s:{r:2,c:0},e:{r:2,c:7}},
+    {s:{r:outStartRow,c:0},e:{r:outStartRow,c:7}},
+    ...ovKpis.flatMap((_,idx)=>{const sc2=(idx%4)*2;const sr=3+Math.floor(idx/4)*5;return[{s:{r:sr,c:sc2},e:{r:sr,c:sc2+1}},{s:{r:sr+1,c:sc2},e:{r:sr+1,c:sc2+1}},{s:{r:sr+2,c:sc2},e:{r:sr+2,c:sc2+1}},{s:{r:sr+3,c:sc2},e:{r:sr+3,c:sc2+1}}];}),
+    ...outRows.map((_,i)=>[{s:{r:outStartRow+2+i,c:4},e:{r:outStartRow+2+i,c:7}}]).flat(),
+  ];
+  ws1['!rows'] = [{hpt:42},{hpt:22},{hpt:10},...Array(10).fill({hpt:0}).flatMap(()=>[{hpt:18},{hpt:36},{hpt:16},{hpt:8},{hpt:10}]),{hpt:12},{hpt:28},{hpt:22},...outRows.map(()=>({hpt:28}))];
+  ws1['!cols'] = [{wch:16},{wch:8},{wch:16},{wch:8},{wch:16},{wch:8},{wch:16},{wch:8}];
+  XLSX.utils.book_append_sheet(wb, ws1, '📊 Overview');
+
+  // ── SHEET 2: AGENT SUMMARY ──
+  const ags = buildAgentData(rows);
+  const agCols = ['AGENT NAME','TOTAL','ANSWERED','MISSED','ANSWER RATE','CONVERTED','INTERESTED','NOT INTERESTED','NOT RESPONDED','CALL BACK','UNDISPOSED','OTHERS','CPR %','AVG TALK'];
+  const ws2 = {};
+  for(let c=0;c<14;c++) ws2[XLSX.utils.encode_cell({r:0,c})] = c===0?TitleCell('AGENT PERFORMANCE SUMMARY'):BLANK('064E3B');
+  for(let c=0;c<14;c++) ws2[XLSX.utils.encode_cell({r:1,c})] = c===0?SubCell(`Period: ${document.getElementById('fd').value} – ${document.getElementById('td').value}  |  Campaign: NBHI CMP Leads`):BLANK('0F9B6E');
+  for(let c=0;c<14;c++) ws2[XLSX.utils.encode_cell({r:2,c})] = BLANK('FFFFFF');
+  agCols.forEach((h,c) => { ws2[XLSX.utils.encode_cell({r:3,c})] = H(h); });
+  ags.forEach((a,i) => {
+    const r = 4+i; const even = i%2===0; const rbg = even?'F8FAFC':'FFFFFF';
+    const [apfg,apbg] = AG_PAL[i%AG_PAL.length];
+    const ar = a.total>0?((a.answered/a.total)*100).toFixed(1):0;
+    const cprVal = a.answered>0?((a.conv/a.answered)*100).toFixed(1):0;
+    const arFg = +ar>=55?'065F46':+ar>=40?'92400E':'991B1B';
+    const cprFg = +cprVal>=5?'065F46':+cprVal>=2?'92400E':'475569';
+    const vals = [a.name,a.total,a.answered,a.missed,`${ar}%`,a.conv,a.int,a.ni,a.nr,a.cb,a.ud,a.ot,`${cprVal}%`,fmtSec(a.answered>0?a.sec/a.answered:0)];
+    const bgs = [apbg,rbg,rbg,rbg,rbg,'D1FAE5','DBEAFE','FEE2E2',rbg,'FEF3C7',rbg,rbg,rbg,rbg];
+    const fgs = [apfg,'111827','111827','111827',arFg,'065F46','1E40AF','991B1B','111827','92400E','111827','111827',cprFg,'111827'];
+    const bolds = [true,true,false,false,true,true,true,true,false,false,false,false,true,false];
+    vals.forEach((v,c) => { ws2[XLSX.utils.encode_cell({r,c})] = C(v,{bold:bolds[c],bg:bgs[c],fg:fgs[c],sz:c===0?12:11,ha:c===0?'left':'center'}); });
+  });
+  const tr2 = 4+ags.length;
+  const totVals=['TOTALS',ags.reduce((s,a)=>s+a.total,0),ags.reduce((s,a)=>s+a.answered,0),ags.reduce((s,a)=>s+a.missed,0),'',ags.reduce((s,a)=>s+a.conv,0),ags.reduce((s,a)=>s+a.int,0),ags.reduce((s,a)=>s+a.ni,0),ags.reduce((s,a)=>s+a.nr,0),ags.reduce((s,a)=>s+a.cb,0),ags.reduce((s,a)=>s+a.ud,0),ags.reduce((s,a)=>s+a.ot,0),'',''];
+  totVals.forEach((v,c) => { ws2[XLSX.utils.encode_cell({r:tr2,c})] = C(v,{bold:true,bg:'111827',fg:'FFFFFF',sz:11,ha:c===0?'left':'center'}); });
+  ws2['!ref'] = XLSX.utils.encode_range({s:{r:0,c:0},e:{r:tr2,c:13}});
+  ws2['!merges'] = [{s:{r:0,c:0},e:{r:0,c:13}},{s:{r:1,c:0},e:{r:1,c:13}},{s:{r:2,c:0},e:{r:2,c:13}}];
+  ws2['!rows'] = [{hpt:40},{hpt:22},{hpt:10},{hpt:22},...ags.map(()=>({hpt:28})),{hpt:26}];
+  ws2['!cols'] = [{wch:22},{wch:9},{wch:11},{wch:9},{wch:14},{wch:12},{wch:12},{wch:16},{wch:15},{wch:12},{wch:12},{wch:9},{wch:10},{wch:13}];
+  XLSX.utils.book_append_sheet(wb, ws2, '👤 Agent Summary');
+
+  // ── SHEET 3: LEAD LISTS ──
+  const lls = buildLLData(rows);
+  const llCols = ['LIST NAME (ID)','AGENTS','TOTAL CALLS','ANSWERED','MISSED','ANSWER RATE','CONVERTED','INTERESTED','NOT INTERESTED','NOT RESPONDED','CALL BACK','CPR %'];
+  const ws3 = {};
+  for(let c=0;c<12;c++) ws3[XLSX.utils.encode_cell({r:0,c})] = c===0?TitleCell('LEAD LIST PERFORMANCE ANALYSIS'):BLANK('064E3B');
+  for(let c=0;c<12;c++) ws3[XLSX.utils.encode_cell({r:1,c})] = c===0?SubCell('Outbound calls grouped by List ID'):BLANK('0F9B6E');
+  for(let c=0;c<12;c++) ws3[XLSX.utils.encode_cell({r:2,c})] = BLANK('FFFFFF');
+  llCols.forEach((h,c) => { ws3[XLSX.utils.encode_cell({r:3,c})] = H(h); });
+  lls.forEach((l,i) => {
+    const r=4+i; const even=i%2===0; const rbg=even?'F8FAFC':'FFFFFF';
+    const [llfg,llbg] = LL_PAL[i%LL_PAL.length];
+    const ar=l.total>0?((l.answered/l.total)*100).toFixed(1):0;
+    const cprVal=l.answered>0?((l.conv/l.answered)*100).toFixed(1):0;
+    const arFg=+ar>=55?'065F46':+ar>=40?'92400E':'991B1B';
+    const vals=[getListName(l.id),l.agents.size,l.total,l.answered,l.missed,`${ar}%`,l.conv,l.int,l.ni,l.nr,l.cb,`${cprVal}%`];
+    const bgs=[llbg,rbg,rbg,'D1FAE5','FEE2E2',rbg,'D1FAE5','DBEAFE','FEE2E2',rbg,'FEF3C7',rbg];
+    const fgs=[llfg,'111827','111827','065F46','991B1B',arFg,'065F46','1E40AF','991B1B','111827','92400E',+cprVal>=5?'065F46':+cprVal>=2?'92400E':'475569'];
+    vals.forEach((v,c)=>{ ws3[XLSX.utils.encode_cell({r,c})] = C(v,{bold:c===0||c===2||c===3||c===4,bg:bgs[c],fg:fgs[c],sz:c===0?12:11,ha:c===0?'left':'center'}); });
+  });
+  const tr3=4+lls.length;
+  const totLL=['TOTAL','-',lls.reduce((s,l)=>s+l.total,0),lls.reduce((s,l)=>s+l.answered,0),lls.reduce((s,l)=>s+l.missed,0),'',lls.reduce((s,l)=>s+l.conv,0),lls.reduce((s,l)=>s+l.int,0),lls.reduce((s,l)=>s+l.ni,0),lls.reduce((s,l)=>s+l.nr,0),lls.reduce((s,l)=>s+l.cb,0),''];
+  totLL.forEach((v,c)=>{ ws3[XLSX.utils.encode_cell({r:tr3,c})] = C(v,{bold:true,bg:'111827',fg:'FFFFFF',sz:11,ha:c===0?'left':'center'}); });
+  ws3['!ref'] = XLSX.utils.encode_range({s:{r:0,c:0},e:{r:tr3,c:11}});
+  ws3['!merges'] = [{s:{r:0,c:0},e:{r:0,c:11}},{s:{r:1,c:0},e:{r:1,c:11}},{s:{r:2,c:0},e:{r:2,c:11}}];
+  ws3['!rows'] = [{hpt:40},{hpt:22},{hpt:10},{hpt:22},...lls.map(()=>({hpt:28})),{hpt:26}];
+  ws3['!cols'] = [{wch:16},{wch:10},{wch:13},{wch:12},{wch:10},{wch:14},{wch:12},{wch:12},{wch:16},{wch:15},{wch:12},{wch:10}];
+  XLSX.utils.book_append_sheet(wb, ws3, '📋 Lead Lists');
+
+  // ── SHEET 4: INBOUND ──
+  const ibRows = rows.filter(r=>r['Direction']==='Inbound');
+  const ibCols = ['TIME','AGENT','CUSTOMER NUMBER','QUEUE','STATUS','DISPOSITION','CATEGORY','TALK TIME'];
+  const ws4 = {};
+  for(let c=0;c<8;c++) ws4[XLSX.utils.encode_cell({r:0,c})] = c===0?TitleCell(`INBOUND CALL ANALYSIS  (${ibRows.length} calls)`):BLANK('064E3B');
+  for(let c=0;c<8;c++) ws4[XLSX.utils.encode_cell({r:1,c})] = c===0?SubCell('All inbound calls — Tatvacare Inbound Queue'):BLANK('0F9B6E');
+  for(let c=0;c<8;c++) ws4[XLSX.utils.encode_cell({r:2,c})] = BLANK('FFFFFF');
+  ibCols.forEach((h,c)=>{ ws4[XLSX.utils.encode_cell({r:3,c})] = H(h); });
+  ibRows.forEach((row,i)=>{
+    const r=4+i; const even=i%2===0; const bg=even?'F8FAFC':'FFFFFF';
+    const ans=row['Call Status']==='Answered';
+    const cs=CAT_CFG[row._cat]||CAT_CFG['Others'];
+    const vals=[r._timeStr,r._agent,String(r['Customer Number']||''),r._queue,r['Call Status'],r._dispo,r._cat,fmtSec(r._convSec)];
+    const bgs=[bg,bg,bg,bg,ans?'D1FAE5':'FEE2E2',bg,cs.bg.replace('#',''),bg];
+    const fgs=['111827',row._agent==='Unknown'?'9CA3AF':'065F46','111827','6B7280',ans?'065F46':'991B1B','475569',cs.fg.replace('#',''),'111827'];
+    vals.forEach((v,c)=>{ ws4[XLSX.utils.encode_cell({r,c})] = C(v,{bold:c===1||c===4||c===6,bg:bgs[c],fg:fgs[c],sz:c===6?10:11,ha:c>=4?'center':'left'}); });
+  });
+  ws4['!ref'] = XLSX.utils.encode_range({s:{r:0,c:0},e:{r:4+ibRows.length,c:7}});
+  ws4['!merges'] = [{s:{r:0,c:0},e:{r:0,c:7}},{s:{r:1,c:0},e:{r:1,c:7}},{s:{r:2,c:0},e:{r:2,c:7}}];
+  ws4['!rows'] = [{hpt:40},{hpt:22},{hpt:10},{hpt:22},...ibRows.map(()=>({hpt:22}))];
+  ws4['!cols'] = [{wch:18},{wch:18},{wch:16},{wch:26},{wch:12},{wch:38},{wch:18},{wch:12}];
+  XLSX.utils.book_append_sheet(wb, ws4, '📥 Inbound Calls');
+
+  // ── SHEET 5: FULL CALL LOG ──
+  const logCols = ['TIME','DIRECTION','AGENT','CUSTOMER NUMBER','CUSTOMER NAME','STATUS','DISPOSITION','CATEGORY','TALK TIME','LIST NAME (ID)','CIRCLE','OPERATOR','CALL TYPE'];
+  const ws5 = {};
+  for(let c=0;c<13;c++) ws5[XLSX.utils.encode_cell({r:0,c})] = c===0?TitleCell(`COMPLETE CALL LOG  (${total} records)`):BLANK('064E3B');
+  for(let c=0;c<13;c++) ws5[XLSX.utils.encode_cell({r:1,c})] = c===0?SubCell(`All calls · ${document.getElementById('fd').value} to ${document.getElementById('td').value}`):BLANK('0F9B6E');
+  for(let c=0;c<13;c++) ws5[XLSX.utils.encode_cell({r:2,c})] = BLANK('FFFFFF');
+  logCols.forEach((h,c)=>{ ws5[XLSX.utils.encode_cell({r:3,c})] = H(h); });
+  rows.forEach((row,i)=>{
+    const r=4+i; const even=i%2===0; const bg=even?'F8FAFC':'FFFFFF';
+    const ans=row['Call Status']==='Answered';
+    const isOut=row['Direction']==='Outbound';
+    const cs=CAT_CFG[row._cat]||CAT_CFG['Others'];
+    const rowbg=ans?'F0FDF4':'FFF5F5';
+    const vals=[r._timeStr,r['Direction'],r._agent,String(r['Customer Number']||''),String(r['Customer Name']||'').slice(0,20),r['Call Status'],r._dispo,r._cat,fmtSec(r._convSec),getListName(r._listId)+' ('+r._listId+')',String(r['Circle']||'').slice(0,16),String(r['Operator']||'').slice(0,14)];
+    const bgs=[rowbg,rowbg,rowbg,rowbg,rowbg,ans?'D1FAE5':'FEE2E2',rowbg,cs.bg.replace('#',''),rowbg,rowbg,rowbg,rowbg,rowbg];
+    const fgs=['111827',isOut?'1E40AF':'D97706',row._agent==='Unknown'?'9CA3AF':'111827','111827','111827',ans?'065F46':'991B1B','475569',cs.fg.replace('#',''),'111827','6B7280','9CA3AF','9CA3AF','6B7280'];
+    const bolds=[false,true,true,false,false,true,false,true,false,false,false,false,false];
+    vals.forEach((v,c)=>{ ws5[XLSX.utils.encode_cell({r,c})] = C(v,{bold:bolds[c],bg:bgs[c],fg:fgs[c],sz:c===7?10:11,ha:c>=5&&c<=8?'center':'left'}); });
+  });
+  ws5['!ref'] = XLSX.utils.encode_range({s:{r:0,c:0},e:{r:4+total,c:12}});
+  ws5['!merges'] = [{s:{r:0,c:0},e:{r:0,c:12}},{s:{r:1,c:0},e:{r:1,c:12}},{s:{r:2,c:0},e:{r:2,c:12}}];
+  ws5['!rows'] = [{hpt:40},{hpt:22},{hpt:10},{hpt:22},...rows.map(()=>({hpt:20}))];
+  ws5['!cols'] = [{wch:18},{wch:12},{wch:18},{wch:16},{wch:22},{wch:11},{wch:42},{wch:18},{wch:12},{wch:12},{wch:18},{wch:16},{wch:16}];
+  ws5['!freeze'] = {xSplit:0,ySplit:4};
+  XLSX.utils.book_append_sheet(wb, ws5, '📞 Call Log');
+
+  const dateLabel = CUR === 'all' ? 'All_Dates' : CUR.replace('range:','').replace(':','_to_');
+  XLSX.writeFile(wb, `Acephone_CDR_${dateLabel}_${new Date().toISOString().slice(0,10)}.xlsx`);
+}
+</script>
+</body>
+</html>
