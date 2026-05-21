@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Acephone · CDR Analytics</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
@@ -1238,210 +1238,381 @@ function renderCallLog(rows) {
 function downloadExcel() {
   const rows = getFiltered();
   const total = rows.length;
-  const outbound = rows.filter(r => r['Direction'] === 'Outbound');
-  const inbound = rows.filter(r => r['Direction'] === 'Inbound');
-  const answered = rows.filter(r => r['Call Status'] === 'Answered').length;
-  const missed = rows.filter(r => r['Call Status'] === 'Missed').length;
-  const conv = rows.filter(r => r._cat === 'Converted').length;
-  const inter = rows.filter(r => r._cat === 'Interested').length;
-  const ni = rows.filter(r => r._cat === 'Not Interested').length;
-  const nr = rows.filter(r => r._cat === 'Not Responded').length;
-  const cb = rows.filter(r => r._cat === 'Call Back').length;
-  const ud = rows.filter(r => r._cat === 'Undisposed').length;
-  const ot = rows.filter(r => r._cat === 'Others').length;
-  const cpr = answered > 0 ? ((conv/answered)*100).toFixed(1) : '0.0';
-  const ansRows = rows.filter(r => r['Call Status'] === 'Answered');
-  const avgT = fmtSec(ansRows.length ? ansRows.reduce((s,r)=>s+r._convSec,0)/ansRows.length : 0);
-  const agents = new Set(rows.map(r=>r._agent).filter(a=>a!=='Unknown')).size;
+  if (!total) { alert('No data to export.'); return; }
 
+  // Build a proper, styled Excel using structured data
   const wb = XLSX.utils.book_new();
+  const dateLabel = CUR === 'all' ? 'All_Dates' : CUR.replace('range:','').replace(':','_to_');
 
-  // Style helper – returns a cell object with full styling
-  function C(value, opts = {}) {
+  // ── Color palette constants ──
+  const GREEN_D  = 'FF064E3B', GREEN   = 'FF0F9B6E', GREEN_L  = 'FFD1FAE5';
+  const BLUE_D   = 'FF1E40AF', BLUE_L  = 'FFDBEAFE';
+  const RED_D    = 'FF991B1B', RED_L   = 'FFFEE2E2';
+  const AMBER_D  = 'FFD97706', AMBER_L = 'FFFEF3C7';
+  const PURPLE_D = 'FF5B21B6', PURPLE_L= 'FFEDE9FE';
+  const TEAL_D   = 'FF075985', TEAL_L  = 'FFCFFAFE';
+  const GRAY_D   = 'FF374151', GRAY_L  = 'FFF1F5F9';
+  const DARK     = 'FF0F172A', WHITE   = 'FFFFFFFF';
+  const ROW_A    = 'FFF8FAFC', ROW_B   = 'FFFFFFFF';
+
+  const CAT_CLR = {
+    'Converted':      [GREEN_D, GREEN_L],
+    'Interested':     [BLUE_D,  BLUE_L],
+    'Not Interested': [RED_D,   RED_L],
+    'Not Responded':  [GRAY_D,  GRAY_L],
+    'Call Back':      [AMBER_D, AMBER_L],
+    'Undisposed':     [PURPLE_D,PURPLE_L],
+    'Others':         [GRAY_D,  GRAY_L],
+  };
+  const AG_PAL = [[GREEN_D,GREEN_L],[BLUE_D,BLUE_L],[AMBER_D,AMBER_L],[PURPLE_D,PURPLE_L]];
+  const LL_PAL = [[GREEN_D,GREEN_L],[BLUE_D,BLUE_L],[AMBER_D,AMBER_L],[PURPLE_D,PURPLE_L]];
+
+  // ── Cell style builder ──
+  function s(fg='FF111827', bg='FFFFFFFF', bold=false, sz=11, ha='left', italic=false, wrap=false) {
     return {
-      v: value,
-      t: typeof value === 'number' ? 'n' : 's',
-      s: {
-        font: { name: 'Calibri', bold: opts.bold||false, sz: opts.sz||11, color: { rgb: opts.fg || '111827' }, italic: opts.italic||false },
-        fill: { patternType: 'solid', fgColor: { rgb: opts.bg || 'FFFFFF' } },
-        alignment: { horizontal: opts.ha || 'left', vertical: 'center', wrapText: opts.wrap || false },
-        border: {
-          top:    { style: 'thin', color: { rgb: 'D1D5DB' } },
-          bottom: { style: 'thin', color: { rgb: 'D1D5DB' } },
-          left:   { style: 'thin', color: { rgb: 'D1D5DB' } },
-          right:  { style: 'thin', color: { rgb: 'D1D5DB' } },
-        }
+      font:  { name:'Calibri', bold, sz, color:{rgb:fg.replace('FF','')}, italic },
+      fill:  { patternType:'solid', fgColor:{rgb:bg.replace('FF','')} },
+      alignment: { horizontal:ha, vertical:'center', wrapText:wrap },
+      border: {
+        top:   {style:'thin',color:{rgb:'D1D5DB'}},
+        bottom:{style:'thin',color:{rgb:'D1D5DB'}},
+        left:  {style:'thin',color:{rgb:'D1D5DB'}},
+        right: {style:'thin',color:{rgb:'D1D5DB'}}
       }
     };
   }
-  function H(v) { return C(v, { bold:true, bg:'064E3B', fg:'FFFFFF', sz:10, ha:'center' }); }
-  function TitleCell(v) { return C(v, { bold:true, bg:'064E3B', fg:'FFFFFF', sz:18, ha:'left' }); }
-  function SubCell(v) { return C(v, { italic:true, bg:'0F9B6E', fg:'FFFFFF', sz:11, ha:'left' }); }
-  const BLANK = bg => C('', { bg });
+  function C(v, fg, bg, bold=false, sz=11, ha='left', italic=false, wrap=false) {
+    const t = typeof v==='number'?'n':'s';
+    return { v, t, s: s(fg,bg,bold,sz,ha,italic,wrap) };
+  }
+  function H(v)  { return C(v,'FFFFFFFF',DARK,true,10,'center'); }
+  function T(v)  { return C(v,'FFFFFFFF',GREEN_D,true,18,'left'); }
+  function SB(v) { return C(v,'FFFFFFFF',GREEN,false,11,'left',true); }
+  function BL(bg){ return C('','FFFFFFFF',bg); }
+  function SEC(v,bg=DARK){ return C(`  ${v}`,'FFFFFFFF',bg,true,12,'left'); }
 
-  // ── SHEET 1: OVERVIEW ──
-  const ovKpis = [
-    ['📞 TOTAL CALLS', total, `${outbound.length} outbound · ${inbound.length} inbound`, '1E40AF','DBEAFE'],
-    ['✅ ANSWERED',    answered, `${pct(answered,total)}% answer rate`, '065F46','D1FAE5'],
-    ['❌ MISSED',      missed, `${pct(missed,total)}% miss rate`, '991B1B','FEE2E2'],
-    ['👤 ACTIVE AGENTS', agents, 'on this period', '5B21B6','EDE9FE'],
-    ['🎯 CPR %',       `${cpr}%`, 'Converted ÷ Answered', '92400E','FEF3C7'],
-    ['⏱ AVG TALK TIME', avgT, 'per answered call', '075985','CFFAFE'],
-    ['📱 UNIQUE NUMBERS', new Set(rows.map(r=>r['Customer Number'])).size, `${pct(new Set(rows.map(r=>r['Customer Number'])).size,total)}% unique`, '374151','F1F5F9'],
-    ['🔁 CALL BACK',   cb, `${pct(cb,total)}% of total`, '92400E','FEF3C7'],
+  function addMerge(merges,r,c1,c2){ merges.push({s:{r,c:c1},e:{r,c:c2}}); }
+
+  // ── Stats ──
+  const outbound = rows.filter(r=>r['Direction']==='Outbound');
+  const inbound  = rows.filter(r=>r['Direction']==='Inbound');
+  const answered = rows.filter(r=>r['Call Status']==='Answered').length;
+  const missed   = rows.filter(r=>r['Call Status']==='Missed').length;
+  const conv  = rows.filter(r=>r._cat==='Converted').length;
+  const inter = rows.filter(r=>r._cat==='Interested').length;
+  const ni    = rows.filter(r=>r._cat==='Not Interested').length;
+  const nr    = rows.filter(r=>r._cat==='Not Responded').length;
+  const cb    = rows.filter(r=>r._cat==='Call Back').length;
+  const ud    = rows.filter(r=>r._cat==='Undisposed').length;
+  const ot    = rows.filter(r=>r._cat==='Others').length;
+  const cprV  = answered>0?((conv/answered)*100).toFixed(1):'0.0';
+  const ansR  = rows.filter(r=>r['Call Status']==='Answered');
+  const avgT  = fmtSec(ansR.length?ansR.reduce((s2,r)=>s2+r._convSec,0)/ansR.length:0);
+  const uniq  = new Set(rows.map(r=>r['Customer Number'])).size;
+  const agCnt = new Set(rows.map(r=>r._agent).filter(a=>a!=='Unknown')).size;
+
+  // ════════════════════════════════════════════
+  // SHEET 1 — OVERVIEW
+  // ════════════════════════════════════════════
+  const aoa1 = [];
+  const m1   = [];
+  const rows1 = [];
+
+  // Title (row 0)
+  const nc1 = 8;
+  const titleRow1 = [T('ACEPHONE CDR ANALYTICS REPORT')];
+  for(let c=1;c<nc1;c++) titleRow1.push(BL(GREEN_D));
+  aoa1.push(titleRow1); rows1.push({hpt:44}); addMerge(m1,0,0,nc1-1);
+
+  // Subtitle (row 1)
+  const subRow1 = [SB(`Date: ${dateLabel.replace(/_/g,' ')}  |  Campaign: NBHI CMP Leads  |  ${total.toLocaleString()} calls`)];
+  for(let c=1;c<nc1;c++) subRow1.push(BL(GREEN));
+  aoa1.push(subRow1); rows1.push({hpt:22}); addMerge(m1,1,0,nc1-1);
+
+  // Spacer (row 2)
+  aoa1.push(Array(nc1).fill(BL(WHITE))); rows1.push({hpt:10});
+
+  // KPI Cards — 4 per row, each spans 2 cols
+  const kpis = [
+    ['TOTAL CALLS',    total,     `${outbound.length} outbound · ${inbound.length} inbound`,'FFFFFFFF',BLUE_D, BLUE_L],
+    ['ANSWERED',       answered,  `${pct(answered,total)}% answer rate`,                    'FFFFFFFF',GREEN_D,GREEN_L],
+    ['MISSED',         missed,    `${pct(missed,total)}% miss rate`,                         'FFFFFFFF',RED_D,  RED_L],
+    ['ACTIVE AGENTS',  agCnt,     'on this period',                                          'FFFFFFFF',PURPLE_D,PURPLE_L],
+    ['CPR %',          `${cprV}%`,'Converted ÷ Answered',                                   'FFFFFFFF',AMBER_D,AMBER_L],
+    ['AVG TALK TIME',  avgT,      'per answered call',                                       'FFFFFFFF',TEAL_D, TEAL_L],
+    ['UNIQUE NUMBERS', uniq,      `${pct(uniq,total)}% unique`,                             'FFFFFFFF',GRAY_D, GRAY_L],
+    ['CALL BACK',      cb,        `${pct(cb,total)}% of total`,                             'FFFFFFFF',AMBER_D,AMBER_L],
   ];
-  const ws1 = {};
-  // Title row
-  for (let c = 0; c < 8; c++) { const addr = XLSX.utils.encode_cell({r:0,c}); ws1[addr] = c===0 ? TitleCell('ACEPHONE CDR ANALYTICS REPORT') : BLANK('064E3B'); }
-  for (let c = 0; c < 8; c++) { const addr = XLSX.utils.encode_cell({r:1,c}); ws1[addr] = c===0 ? SubCell(`Period: ${document.getElementById('fd').value} to ${document.getElementById('td').value}  |  Campaign: NBHI CMP Leads  |  Generated: ${new Date().toLocaleDateString('en-IN')}`) : BLANK('0F9B6E'); }
-  for (let c = 0; c < 8; c++) { ws1[XLSX.utils.encode_cell({r:2,c})] = BLANK('FFFFFF'); }
-  // KPI cards (2x4 grid, each card 4 rows x 2 cols)
-  ovKpis.forEach(([lbl,val,sub,fg,bg],idx) => {
-    const startCol = (idx % 4) * 2;
-    const startRow = 3 + Math.floor(idx / 4) * 5;
-    [[lbl,true,fg,bg,10,'left'],[val,true,fg,bg,26,'center'],[sub,false,'9CA3AF',bg,10,'center'],['',false,'',bg,10,'left']].forEach(([v,bold,vfg,vbg,sz,ha],ri) => {
-      for (let c = 0; c < 2; c++) ws1[XLSX.utils.encode_cell({r:startRow+ri,c:startCol+c})] = c===0&&ri<3 ? C(ri===0?`  ${v}`:v,{bold,fg:vfg,bg:vbg,sz,ha}) : BLANK(vbg);
-    });
+  kpis.forEach(([lbl,val,sub,,fg,bg],idx) => {
+    const sc = (idx%4)*2, sr = 3+(Math.floor(idx/4))*5;
+    while(aoa1.length<=sr+3) { aoa1.push(Array(nc1).fill(BL(WHITE))); rows1.push({hpt:18}); }
+    // label row
+    aoa1[sr][sc]   = C(`  ${lbl}`,fg,bg,true,10,'left');
+    aoa1[sr][sc+1] = BL(bg);
+    rows1[sr] = {hpt:18}; addMerge(m1,sr,sc,sc+1);
+    // value row
+    if(!aoa1[sr+1]) { aoa1[sr+1]=Array(nc1).fill(BL(WHITE)); rows1.push({hpt:38}); }
+    aoa1[sr+1][sc]   = C(val,fg,bg,true,28,'center');
+    aoa1[sr+1][sc+1] = BL(bg);
+    rows1[sr+1]={hpt:38}; addMerge(m1,sr+1,sc,sc+1);
+    // sub row
+    if(!aoa1[sr+2]) { aoa1[sr+2]=Array(nc1).fill(BL(WHITE)); rows1.push({hpt:16}); }
+    aoa1[sr+2][sc]   = C(sub,'FF9CA3AF',bg,false,10,'center',true);
+    aoa1[sr+2][sc+1] = BL(bg);
+    rows1[sr+2]={hpt:16}; addMerge(m1,sr+2,sc,sc+1);
+    // spacer
+    if(!aoa1[sr+3]) { aoa1[sr+3]=Array(nc1).fill(BL(WHITE)); rows1.push({hpt:8}); }
+    aoa1[sr+3][sc]=aoa1[sr+3][sc+1]=BL(WHITE);
+    rows1[sr+3]={hpt:8}; addMerge(m1,sr+3,sc,sc+1);
   });
-  // Outcome section
-  const outStartRow = 3 + 2 * 5 + 1;
-  for (let c = 0; c < 8; c++) ws1[XLSX.utils.encode_cell({r:outStartRow,c})] = c===0 ? C('  🎯  OUTCOME BREAKDOWN',{bold:true,bg:'111827',fg:'FFFFFF',sz:13,ha:'left'}) : BLANK('111827');
-  [['OUTCOME','COUNT','% OF TOTAL','% OF ANSWERED','VISUAL BAR','','','']].forEach((row,ri) => row.forEach((v,ci) => { ws1[XLSX.utils.encode_cell({r:outStartRow+1,c:ci})] = H(v); }));
+
+  // Outcome section header (row 14)
+  while(aoa1.length<14) { aoa1.push(Array(nc1).fill(BL(WHITE))); rows1.push({hpt:10}); }
+  const secRow = Array(nc1).fill(BL(DARK)); secRow[0]=SEC('OUTCOME BREAKDOWN');
+  aoa1.push(secRow); rows1.push({hpt:26}); addMerge(m1,aoa1.length-1,0,nc1-1);
+
+  // Outcome header
+  aoa1.push(['OUTCOME','COUNT','% OF TOTAL','% OF ANSWERED','','VISUAL BAR','',''].map(H));
+  rows1.push({hpt:22});
+
+  // Outcome rows
   const outRows = [
-    ['🏆  Converted',conv,'1D9E75','D1FAE5'],['💰  Interested',inter,'1A56DB','DBEAFE'],
-    ['🚫  Not Interested',ni,'DC2626','FEE2E2'],['📵  Not Responded',nr,'475569','F1F5F9'],
-    ['🔁  Call Back',cb,'D97706','FEF3C7'],['⏸  Undisposed',ud,'7C3AED','EDE9FE'],['📋  Others',ot,'475569','F1F5F9']
+    ['Converted',     conv, '🏆  Converted'],
+    ['Interested',    inter,'💰  Interested'],
+    ['Not Interested',ni,   '🚫  Not Interested'],
+    ['Not Responded', nr,   '📵  Not Responded'],
+    ['Call Back',     cb,   '🔁  Call Back'],
+    ['Undisposed',    ud,   '⏸   Undisposed'],
+    ['Others',        ot,   '📋  Others'],
   ];
   const maxO = Math.max(...outRows.map(o=>o[1]),1);
-  outRows.forEach(([lbl,cnt,fg,bg],i) => {
-    const r = outStartRow + 2 + i;
-    const bar = '█'.repeat(Math.round(cnt/maxO*20)) + '░'.repeat(20-Math.round(cnt/maxO*20));
-    ws1[XLSX.utils.encode_cell({r,c:0})] = C(lbl,{bold:true,bg,fg,sz:12,ha:'left'});
-    ws1[XLSX.utils.encode_cell({r,c:1})] = C(cnt,{bold:true,bg,fg,sz:14,ha:'center'});
-    ws1[XLSX.utils.encode_cell({r,c:2})] = C(`${pct(cnt,total)}%`,{bold:true,bg,fg,sz:11,ha:'center'});
-    ws1[XLSX.utils.encode_cell({r,c:3})] = C(answered>0?`${pct(cnt,answered)}%`:'—',{bg,fg:'6B7280',sz:11,ha:'center'});
-    for (let c2=4;c2<8;c2++) ws1[XLSX.utils.encode_cell({r,c:c2})] = c2===4 ? C(bar,{bg,fg,sz:9}) : BLANK(bg);
+  outRows.forEach(([cat,cnt,lbl],i) => {
+    const [fg2,bg2] = CAT_CLR[cat]||[GRAY_D,GRAY_L];
+    const bar = '█'.repeat(Math.round(cnt/maxO*24))+'░'.repeat(24-Math.round(cnt/maxO*24));
+    const row1 = [
+      C(lbl,fg2,bg2,true,12,'left'),
+      C(cnt,fg2,bg2,true,16,'center'),
+      C(`${pct(cnt,total)}%`,fg2,bg2,true,11,'center'),
+      C(answered>0?`${pct(cnt,answered)}%`:'—','FF6B7280',bg2,false,11,'center'),
+      BL(bg2),
+      C(bar,fg2,bg2,false,9,'left'),
+      BL(bg2),BL(bg2)
+    ];
+    aoa1.push(row1); rows1.push({hpt:28});
+    addMerge(m1,aoa1.length-1,4,7);
   });
-  const lastRow1 = outStartRow + 2 + outRows.length;
-  ws1['!ref'] = XLSX.utils.encode_range({s:{r:0,c:0},e:{r:lastRow1,c:7}});
-  ws1['!merges'] = [
-    {s:{r:0,c:0},e:{r:0,c:7}},{s:{r:1,c:0},e:{r:1,c:7}},{s:{r:2,c:0},e:{r:2,c:7}},
-    {s:{r:outStartRow,c:0},e:{r:outStartRow,c:7}},
-    ...ovKpis.flatMap((_,idx)=>{const sc2=(idx%4)*2;const sr=3+Math.floor(idx/4)*5;return[{s:{r:sr,c:sc2},e:{r:sr,c:sc2+1}},{s:{r:sr+1,c:sc2},e:{r:sr+1,c:sc2+1}},{s:{r:sr+2,c:sc2},e:{r:sr+2,c:sc2+1}},{s:{r:sr+3,c:sc2},e:{r:sr+3,c:sc2+1}}];}),
-    ...outRows.map((_,i)=>[{s:{r:outStartRow+2+i,c:4},e:{r:outStartRow+2+i,c:7}}]).flat(),
-  ];
-  ws1['!rows'] = [{hpt:42},{hpt:22},{hpt:10},...Array(10).fill({hpt:0}).flatMap(()=>[{hpt:18},{hpt:36},{hpt:16},{hpt:8},{hpt:10}]),{hpt:12},{hpt:28},{hpt:22},...outRows.map(()=>({hpt:28}))];
-  ws1['!cols'] = [{wch:16},{wch:8},{wch:16},{wch:8},{wch:16},{wch:8},{wch:16},{wch:8}];
+
+  const ws1 = XLSX.utils.aoa_to_sheet(aoa1);
+  ws1['!merges'] = m1;
+  ws1['!rows']   = rows1;
+  ws1['!cols']   = [{wch:20},{wch:8},{wch:14},{wch:8},{wch:14},{wch:8},{wch:14},{wch:8}];
   XLSX.utils.book_append_sheet(wb, ws1, '📊 Overview');
 
-  // ── SHEET 2: AGENT SUMMARY ──
+  // ════════════════════════════════════════════
+  // SHEET 2 — AGENT SUMMARY
+  // ════════════════════════════════════════════
   const ags = buildAgentData(rows);
-  const agCols = ['AGENT NAME','TOTAL','ANSWERED','MISSED','ANSWER RATE','CONVERTED','INTERESTED','NOT INTERESTED','NOT RESPONDED','CALL BACK','UNDISPOSED','OTHERS','CPR %','AVG TALK'];
-  const ws2 = {};
-  for(let c=0;c<14;c++) ws2[XLSX.utils.encode_cell({r:0,c})] = c===0?TitleCell('AGENT PERFORMANCE SUMMARY'):BLANK('064E3B');
-  for(let c=0;c<14;c++) ws2[XLSX.utils.encode_cell({r:1,c})] = c===0?SubCell(`Period: ${document.getElementById('fd').value} – ${document.getElementById('td').value}  |  Campaign: NBHI CMP Leads`):BLANK('0F9B6E');
-  for(let c=0;c<14;c++) ws2[XLSX.utils.encode_cell({r:2,c})] = BLANK('FFFFFF');
-  agCols.forEach((h,c) => { ws2[XLSX.utils.encode_cell({r:3,c})] = H(h); });
+  const aoa2 = [], m2 = [], rows2 = [];
+  const nc2 = 14;
+  const t2 = [T('AGENT PERFORMANCE SUMMARY'),...Array(nc2-1).fill(BL(GREEN_D))];
+  aoa2.push(t2); rows2.push({hpt:40}); addMerge(m2,0,0,nc2-1);
+  const sb2 = [SB(`Period: ${dateLabel.replace(/_/g,' ')}  |  Campaign: NBHI CMP Leads`),...Array(nc2-1).fill(BL(GREEN))];
+  aoa2.push(sb2); rows2.push({hpt:22}); addMerge(m2,1,0,nc2-1);
+  aoa2.push(Array(nc2).fill(BL(WHITE))); rows2.push({hpt:10});
+  aoa2.push(['AGENT NAME','TOTAL','ANSWERED','MISSED','ANSWER RATE','CONVERTED','INTERESTED','NOT INTERESTED','NOT RESPONDED','CALL BACK','UNDISPOSED','OTHERS','CPR %','AVG TALK'].map(H));
+  rows2.push({hpt:22});
+
   ags.forEach((a,i) => {
-    const r = 4+i; const even = i%2===0; const rbg = even?'F8FAFC':'FFFFFF';
-    const [apfg,apbg] = AG_PAL[i%AG_PAL.length];
-    const ar = a.total>0?((a.answered/a.total)*100).toFixed(1):0;
-    const cprVal = a.answered>0?((a.conv/a.answered)*100).toFixed(1):0;
-    const arFg = +ar>=55?'065F46':+ar>=40?'92400E':'991B1B';
-    const cprFg = +cprVal>=5?'065F46':+cprVal>=2?'92400E':'475569';
-    const vals = [a.name,a.total,a.answered,a.missed,`${ar}%`,a.conv,a.int,a.ni,a.nr,a.cb,a.ud,a.ot,`${cprVal}%`,fmtSec(a.answered>0?a.sec/a.answered:0)];
-    const bgs = [apbg,rbg,rbg,rbg,rbg,'D1FAE5','DBEAFE','FEE2E2',rbg,'FEF3C7',rbg,rbg,rbg,rbg];
-    const fgs = [apfg,'111827','111827','111827',arFg,'065F46','1E40AF','991B1B','111827','92400E','111827','111827',cprFg,'111827'];
-    const bolds = [true,true,false,false,true,true,true,true,false,false,false,false,true,false];
-    vals.forEach((v,c) => { ws2[XLSX.utils.encode_cell({r,c})] = C(v,{bold:bolds[c],bg:bgs[c],fg:fgs[c],sz:c===0?12:11,ha:c===0?'left':'center'}); });
+    const [fg2,bg2] = AG_PAL[i%AG_PAL.length];
+    const rbg = i%2===0?ROW_A:ROW_B;
+    const arFg = +a.ar>=55?GREEN_D:+a.ar>=40?AMBER_D:RED_D;
+    const cFg  = +a.cpr>=5?GREEN_D:+a.cpr>=2?AMBER_D:GRAY_D;
+    aoa2.push([
+      C(a.name,           fg2,bg2,true,12,'left'),
+      C(a.total,          BLUE_D,rbg,true,13,'center'),
+      C(a.answered,       GREEN_D,GREEN_L,true,12,'center'),
+      C(a.missed,         RED_D,RED_L,true,12,'center'),
+      C(`${a.ar}%`,       arFg,rbg,true,12,'center'),
+      C(a.conv,           GREEN_D,GREEN_L,true,13,'center'),
+      C(a.int,            BLUE_D,BLUE_L,true,12,'center'),
+      C(a.ni,             RED_D,RED_L,true,12,'center'),
+      C(a.nr,             GRAY_D,rbg,false,12,'center'),
+      C(a.cb,             AMBER_D,AMBER_L,false,12,'center'),
+      C(a.ud,             PURPLE_D,rbg,false,12,'center'),
+      C(a.ot,             GRAY_D,rbg,false,12,'center'),
+      C(`${a.cpr}%`,      cFg,rbg,true,12,'center'),
+      C(fmtSec(a.answered>0?a.sec/a.answered:0), GRAY_D,rbg,false,11,'center'),
+    ]);
+    rows2.push({hpt:28});
   });
-  const tr2 = 4+ags.length;
-  const totVals=['TOTALS',ags.reduce((s,a)=>s+a.total,0),ags.reduce((s,a)=>s+a.answered,0),ags.reduce((s,a)=>s+a.missed,0),'',ags.reduce((s,a)=>s+a.conv,0),ags.reduce((s,a)=>s+a.int,0),ags.reduce((s,a)=>s+a.ni,0),ags.reduce((s,a)=>s+a.nr,0),ags.reduce((s,a)=>s+a.cb,0),ags.reduce((s,a)=>s+a.ud,0),ags.reduce((s,a)=>s+a.ot,0),'',''];
-  totVals.forEach((v,c) => { ws2[XLSX.utils.encode_cell({r:tr2,c})] = C(v,{bold:true,bg:'111827',fg:'FFFFFF',sz:11,ha:c===0?'left':'center'}); });
-  ws2['!ref'] = XLSX.utils.encode_range({s:{r:0,c:0},e:{r:tr2,c:13}});
-  ws2['!merges'] = [{s:{r:0,c:0},e:{r:0,c:13}},{s:{r:1,c:0},e:{r:1,c:13}},{s:{r:2,c:0},e:{r:2,c:13}}];
-  ws2['!rows'] = [{hpt:40},{hpt:22},{hpt:10},{hpt:22},...ags.map(()=>({hpt:28})),{hpt:26}];
-  ws2['!cols'] = [{wch:22},{wch:9},{wch:11},{wch:9},{wch:14},{wch:12},{wch:12},{wch:16},{wch:15},{wch:12},{wch:12},{wch:9},{wch:10},{wch:13}];
+  // Totals
+  aoa2.push([
+    C('TOTALS','FFFFFFFF',DARK,true,12,'left'),
+    C(ags.reduce((s2,a)=>s2+a.total,0),'FFFFFFFF',DARK,true,12,'center'),
+    C(ags.reduce((s2,a)=>s2+a.answered,0),'FFFFFFFF',DARK,true,12,'center'),
+    C(ags.reduce((s2,a)=>s2+a.missed,0),'FFFFFFFF',DARK,true,12,'center'),
+    C('','FFFFFFFF',DARK,false,11,'center'),
+    C(ags.reduce((s2,a)=>s2+a.conv,0),'FFFFFFFF',DARK,true,12,'center'),
+    C(ags.reduce((s2,a)=>s2+a.int,0),'FFFFFFFF',DARK,true,12,'center'),
+    C(ags.reduce((s2,a)=>s2+a.ni,0),'FFFFFFFF',DARK,true,12,'center'),
+    C(ags.reduce((s2,a)=>s2+a.nr,0),'FFFFFFFF',DARK,true,12,'center'),
+    C(ags.reduce((s2,a)=>s2+a.cb,0),'FFFFFFFF',DARK,true,12,'center'),
+    C(ags.reduce((s2,a)=>s2+a.ud,0),'FFFFFFFF',DARK,true,12,'center'),
+    C(ags.reduce((s2,a)=>s2+a.ot,0),'FFFFFFFF',DARK,true,12,'center'),
+    C('','FFFFFFFF',DARK),C('','FFFFFFFF',DARK),
+  ]);
+  rows2.push({hpt:26});
+
+  const ws2 = XLSX.utils.aoa_to_sheet(aoa2);
+  ws2['!merges']=m2; ws2['!rows']=rows2;
+  ws2['!cols']=[{wch:24},{wch:9},{wch:11},{wch:9},{wch:14},{wch:12},{wch:12},{wch:16},{wch:15},{wch:12},{wch:12},{wch:9},{wch:10},{wch:13}];
+  ws2['!freeze']={xSplit:0,ySplit:4};
   XLSX.utils.book_append_sheet(wb, ws2, '👤 Agent Summary');
 
-  // ── SHEET 3: LEAD LISTS ──
+  // ════════════════════════════════════════════
+  // SHEET 3 — LEAD LISTS
+  // ════════════════════════════════════════════
   const lls = buildLLData(rows);
-  const llCols = ['LIST NAME (ID)','AGENTS','TOTAL CALLS','ANSWERED','MISSED','ANSWER RATE','CONVERTED','INTERESTED','NOT INTERESTED','NOT RESPONDED','CALL BACK','CPR %'];
-  const ws3 = {};
-  for(let c=0;c<12;c++) ws3[XLSX.utils.encode_cell({r:0,c})] = c===0?TitleCell('LEAD LIST PERFORMANCE ANALYSIS'):BLANK('064E3B');
-  for(let c=0;c<12;c++) ws3[XLSX.utils.encode_cell({r:1,c})] = c===0?SubCell('Outbound calls grouped by List ID'):BLANK('0F9B6E');
-  for(let c=0;c<12;c++) ws3[XLSX.utils.encode_cell({r:2,c})] = BLANK('FFFFFF');
-  llCols.forEach((h,c) => { ws3[XLSX.utils.encode_cell({r:3,c})] = H(h); });
-  lls.forEach((l,i) => {
-    const r=4+i; const even=i%2===0; const rbg=even?'F8FAFC':'FFFFFF';
-    const [llfg,llbg] = LL_PAL[i%LL_PAL.length];
-    const ar=l.total>0?((l.answered/l.total)*100).toFixed(1):0;
-    const cprVal=l.answered>0?((l.conv/l.answered)*100).toFixed(1):0;
-    const arFg=+ar>=55?'065F46':+ar>=40?'92400E':'991B1B';
-    const vals=[getListName(l.id),l.agents.size,l.total,l.answered,l.missed,`${ar}%`,l.conv,l.int,l.ni,l.nr,l.cb,`${cprVal}%`];
-    const bgs=[llbg,rbg,rbg,'D1FAE5','FEE2E2',rbg,'D1FAE5','DBEAFE','FEE2E2',rbg,'FEF3C7',rbg];
-    const fgs=[llfg,'111827','111827','065F46','991B1B',arFg,'065F46','1E40AF','991B1B','111827','92400E',+cprVal>=5?'065F46':+cprVal>=2?'92400E':'475569'];
-    vals.forEach((v,c)=>{ ws3[XLSX.utils.encode_cell({r,c})] = C(v,{bold:c===0||c===2||c===3||c===4,bg:bgs[c],fg:fgs[c],sz:c===0?12:11,ha:c===0?'left':'center'}); });
-  });
-  const tr3=4+lls.length;
-  const totLL=['TOTAL','-',lls.reduce((s,l)=>s+l.total,0),lls.reduce((s,l)=>s+l.answered,0),lls.reduce((s,l)=>s+l.missed,0),'',lls.reduce((s,l)=>s+l.conv,0),lls.reduce((s,l)=>s+l.int,0),lls.reduce((s,l)=>s+l.ni,0),lls.reduce((s,l)=>s+l.nr,0),lls.reduce((s,l)=>s+l.cb,0),''];
-  totLL.forEach((v,c)=>{ ws3[XLSX.utils.encode_cell({r:tr3,c})] = C(v,{bold:true,bg:'111827',fg:'FFFFFF',sz:11,ha:c===0?'left':'center'}); });
-  ws3['!ref'] = XLSX.utils.encode_range({s:{r:0,c:0},e:{r:tr3,c:11}});
-  ws3['!merges'] = [{s:{r:0,c:0},e:{r:0,c:11}},{s:{r:1,c:0},e:{r:1,c:11}},{s:{r:2,c:0},e:{r:2,c:11}}];
-  ws3['!rows'] = [{hpt:40},{hpt:22},{hpt:10},{hpt:22},...lls.map(()=>({hpt:28})),{hpt:26}];
-  ws3['!cols'] = [{wch:16},{wch:10},{wch:13},{wch:12},{wch:10},{wch:14},{wch:12},{wch:12},{wch:16},{wch:15},{wch:12},{wch:10}];
-  XLSX.utils.book_append_sheet(wb, ws3, '📋 Lead Lists');
+  const aoa3=[],m3=[],rows3=[];
+  const nc3=11;
+  const t3=[T('LEAD LIST PERFORMANCE'),...Array(nc3-1).fill(BL(GREEN_D))];
+  aoa3.push(t3); rows3.push({hpt:40}); addMerge(m3,0,0,nc3-1);
+  aoa3.push([SB('Outbound calls only, grouped by List ID'),...Array(nc3-1).fill(BL(GREEN))]);
+  rows3.push({hpt:22}); addMerge(m3,1,0,nc3-1);
+  aoa3.push(Array(nc3).fill(BL(WHITE))); rows3.push({hpt:10});
+  aoa3.push(['LIST NAME (ID)','AGENTS','TOTAL','ANSWERED','MISSED','ANSWER RATE','CONVERTED','INTERESTED','NOT INTERESTED','NOT RESPONDED','CALL BACK'].map(H));
+  rows3.push({hpt:22});
 
-  // ── SHEET 4: INBOUND ──
-  const ibRows = rows.filter(r=>r['Direction']==='Inbound');
-  const ibCols = ['TIME','AGENT','CUSTOMER NUMBER','QUEUE','STATUS','DISPOSITION','CATEGORY','TALK TIME'];
-  const ws4 = {};
-  for(let c=0;c<8;c++) ws4[XLSX.utils.encode_cell({r:0,c})] = c===0?TitleCell(`INBOUND CALL ANALYSIS  (${ibRows.length} calls)`):BLANK('064E3B');
-  for(let c=0;c<8;c++) ws4[XLSX.utils.encode_cell({r:1,c})] = c===0?SubCell('All inbound calls — Tatvacare Inbound Queue'):BLANK('0F9B6E');
-  for(let c=0;c<8;c++) ws4[XLSX.utils.encode_cell({r:2,c})] = BLANK('FFFFFF');
-  ibCols.forEach((h,c)=>{ ws4[XLSX.utils.encode_cell({r:3,c})] = H(h); });
-  ibRows.forEach((row,i)=>{
-    const r=4+i; const even=i%2===0; const bg=even?'F8FAFC':'FFFFFF';
-    const ans=row['Call Status']==='Answered';
-    const cs=CAT_CFG[row._cat]||CAT_CFG['Others'];
-    const vals=[r._timeStr,r._agent,String(r['Customer Number']||''),r._queue,r['Call Status'],r._dispo,r._cat,fmtSec(r._convSec)];
-    const bgs=[bg,bg,bg,bg,ans?'D1FAE5':'FEE2E2',bg,cs.bg.replace('#',''),bg];
-    const fgs=['111827',row._agent==='Unknown'?'9CA3AF':'065F46','111827','6B7280',ans?'065F46':'991B1B','475569',cs.fg.replace('#',''),'111827'];
-    vals.forEach((v,c)=>{ ws4[XLSX.utils.encode_cell({r,c})] = C(v,{bold:c===1||c===4||c===6,bg:bgs[c],fg:fgs[c],sz:c===6?10:11,ha:c>=4?'center':'left'}); });
+  lls.forEach((l,i)=>{
+    const [fg4,bg4]=LL_PAL[i%LL_PAL.length];
+    const rbg4=i%2===0?ROW_A:ROW_B;
+    const arFg4=+l.answered/l.total>=0.55?GREEN_D:+l.answered/l.total>=0.40?AMBER_D:RED_D;
+    aoa3.push([
+      C(getListName(l.id),fg4,bg4,true,12,'left'),
+      C(l.agents.size,GRAY_D,rbg4,false,11,'center'),
+      C(l.total,BLUE_D,rbg4,true,13,'center'),
+      C(l.answered,GREEN_D,GREEN_L,true,12,'center'),
+      C(l.missed,RED_D,RED_L,true,12,'center'),
+      C(`${(l.answered/l.total*100).toFixed(1)}%`,arFg4,rbg4,true,12,'center'),
+      C(l.conv,GREEN_D,GREEN_L,true,12,'center'),
+      C(l.int,BLUE_D,BLUE_L,true,12,'center'),
+      C(l.ni,RED_D,RED_L,true,12,'center'),
+      C(l.nr,GRAY_D,rbg4,false,12,'center'),
+      C(l.cb,AMBER_D,AMBER_L,false,12,'center'),
+    ]);
+    rows3.push({hpt:28});
   });
-  ws4['!ref'] = XLSX.utils.encode_range({s:{r:0,c:0},e:{r:4+ibRows.length,c:7}});
-  ws4['!merges'] = [{s:{r:0,c:0},e:{r:0,c:7}},{s:{r:1,c:0},e:{r:1,c:7}},{s:{r:2,c:0},e:{r:2,c:7}}];
-  ws4['!rows'] = [{hpt:40},{hpt:22},{hpt:10},{hpt:22},...ibRows.map(()=>({hpt:22}))];
-  ws4['!cols'] = [{wch:18},{wch:18},{wch:16},{wch:26},{wch:12},{wch:38},{wch:18},{wch:12}];
-  XLSX.utils.book_append_sheet(wb, ws4, '📥 Inbound Calls');
+  // Totals
+  aoa3.push([C('TOTAL','FFFFFFFF',DARK,true,12),C('-','FFFFFFFF',DARK,true,12,'center'),
+    ...['total','answered','missed'].map(k=>C(lls.reduce((s2,l)=>s2+l[k],0),'FFFFFFFF',DARK,true,12,'center')),
+    C('','FFFFFFFF',DARK),...['conv','int','ni','nr','cb'].map(k=>C(lls.reduce((s2,l)=>s2+l[k],0),'FFFFFFFF',DARK,true,12,'center'))
+  ]);
+  rows3.push({hpt:26});
+  const ws3=XLSX.utils.aoa_to_sheet(aoa3);
+  ws3['!merges']=m3; ws3['!rows']=rows3;
+  ws3['!cols']=[{wch:22},{wch:10},{wch:10},{wch:12},{wch:10},{wch:14},{wch:12},{wch:12},{wch:16},{wch:15},{wch:12}];
+  XLSX.utils.book_append_sheet(wb,ws3,'📋 Lead Lists');
 
-  // ── SHEET 5: FULL CALL LOG ──
-  const logCols = ['TIME','DIRECTION','AGENT','CUSTOMER NUMBER','CUSTOMER NAME','STATUS','DISPOSITION','CATEGORY','TALK TIME','LIST NAME (ID)','CIRCLE','OPERATOR','CALL TYPE'];
-  const ws5 = {};
-  for(let c=0;c<13;c++) ws5[XLSX.utils.encode_cell({r:0,c})] = c===0?TitleCell(`COMPLETE CALL LOG  (${total} records)`):BLANK('064E3B');
-  for(let c=0;c<13;c++) ws5[XLSX.utils.encode_cell({r:1,c})] = c===0?SubCell(`All calls · ${document.getElementById('fd').value} to ${document.getElementById('td').value}`):BLANK('0F9B6E');
-  for(let c=0;c<13;c++) ws5[XLSX.utils.encode_cell({r:2,c})] = BLANK('FFFFFF');
-  logCols.forEach((h,c)=>{ ws5[XLSX.utils.encode_cell({r:3,c})] = H(h); });
-  rows.forEach((row,i)=>{
-    const r=4+i; const even=i%2===0; const bg=even?'F8FAFC':'FFFFFF';
-    const ans=row['Call Status']==='Answered';
-    const isOut=row['Direction']==='Outbound';
-    const cs=CAT_CFG[row._cat]||CAT_CFG['Others'];
-    const rowbg=ans?'F0FDF4':'FFF5F5';
-    const vals=[r._timeStr,r['Direction'],r._agent,String(r['Customer Number']||''),String(r['Customer Name']||'').slice(0,20),r['Call Status'],r._dispo,r._cat,fmtSec(r._convSec),getListName(r._listId)+' ('+r._listId+')',String(r['Circle']||'').slice(0,16),String(r['Operator']||'').slice(0,14)];
-    const bgs=[rowbg,rowbg,rowbg,rowbg,rowbg,ans?'D1FAE5':'FEE2E2',rowbg,cs.bg.replace('#',''),rowbg,rowbg,rowbg,rowbg,rowbg];
-    const fgs=['111827',isOut?'1E40AF':'D97706',row._agent==='Unknown'?'9CA3AF':'111827','111827','111827',ans?'065F46':'991B1B','475569',cs.fg.replace('#',''),'111827','6B7280','9CA3AF','9CA3AF','6B7280'];
-    const bolds=[false,true,true,false,false,true,false,true,false,false,false,false,false];
-    vals.forEach((v,c)=>{ ws5[XLSX.utils.encode_cell({r,c})] = C(v,{bold:bolds[c],bg:bgs[c],fg:fgs[c],sz:c===7?10:11,ha:c>=5&&c<=8?'center':'left'}); });
+  // ════════════════════════════════════════════
+  // SHEET 4 — INBOUND
+  // ════════════════════════════════════════════
+  const ibRows=rows.filter(r=>r['Direction']==='Inbound');
+  const ibAns=ibRows.filter(r=>r['Call Status']==='Answered');
+  const aoa4=[],m4=[],rows4=[];
+  const nc4=8;
+  aoa4.push([T(`INBOUND CALL ANALYSIS  (${ibRows.length} calls)`),...Array(nc4-1).fill(BL(GREEN_D))]);
+  rows4.push({hpt:40}); addMerge(m4,0,0,nc4-1);
+  aoa4.push([SB('All inbound calls'),...Array(nc4-1).fill(BL(GREEN))]);
+  rows4.push({hpt:22}); addMerge(m4,1,0,nc4-1);
+  aoa4.push(Array(nc4).fill(BL(WHITE))); rows4.push({hpt:10});
+
+  // Inbound KPI mini-cards
+  const ibKpis=[
+    ['TOTAL',ibRows.length,'',BLUE_D,BLUE_L],
+    ['ANSWERED',ibAns.length,`${pct(ibAns.length,ibRows.length)} rate`,GREEN_D,GREEN_L],
+    ['MISSED',ibRows.length-ibAns.length,`${pct(ibRows.length-ibAns.length,ibRows.length)} rate`,RED_D,RED_L],
+    ['AVG TALK',fmtSec(ibAns.length?ibAns.reduce((s2,r)=>s2+r._convSec,0)/ibAns.length:0),'per answered',TEAL_D,TEAL_L],
+  ];
+  ibKpis.forEach(([lbl,val,sub,fg5,bg5],idx)=>{
+    const sc=idx*2,sr=3;
+    while(aoa4.length<=sr+3){aoa4.push(Array(nc4).fill(BL(WHITE)));rows4.push({hpt:16});}
+    aoa4[sr][sc]=C(`  ${lbl}`,fg5,bg5,true,10,'left'); aoa4[sr][sc+1]=BL(bg5); rows4[sr]={hpt:18}; addMerge(m4,sr,sc,sc+1);
+    if(!aoa4[sr+1]){aoa4[sr+1]=Array(nc4).fill(BL(WHITE));rows4.push({hpt:36});}
+    aoa4[sr+1][sc]=C(val,fg5,bg5,true,26,'center'); aoa4[sr+1][sc+1]=BL(bg5); rows4[sr+1]={hpt:36}; addMerge(m4,sr+1,sc,sc+1);
+    if(!aoa4[sr+2]){aoa4[sr+2]=Array(nc4).fill(BL(WHITE));rows4.push({hpt:16});}
+    aoa4[sr+2][sc]=C(sub,'FF9CA3AF',bg5,false,10,'center',true); aoa4[sr+2][sc+1]=BL(bg5); rows4[sr+2]={hpt:16}; addMerge(m4,sr+2,sc,sc+1);
+    if(!aoa4[sr+3]){aoa4[sr+3]=Array(nc4).fill(BL(WHITE));rows4.push({hpt:8});}
+    aoa4[sr+3][sc]=aoa4[sr+3][sc+1]=BL(WHITE); rows4[sr+3]={hpt:8}; addMerge(m4,sr+3,sc,sc+1);
   });
-  ws5['!ref'] = XLSX.utils.encode_range({s:{r:0,c:0},e:{r:4+total,c:12}});
-  ws5['!merges'] = [{s:{r:0,c:0},e:{r:0,c:12}},{s:{r:1,c:0},e:{r:1,c:12}},{s:{r:2,c:0},e:{r:2,c:12}}];
-  ws5['!rows'] = [{hpt:40},{hpt:22},{hpt:10},{hpt:22},...rows.map(()=>({hpt:20}))];
-  ws5['!cols'] = [{wch:18},{wch:12},{wch:18},{wch:16},{wch:22},{wch:11},{wch:42},{wch:18},{wch:12},{wch:12},{wch:18},{wch:16},{wch:16}];
-  ws5['!freeze'] = {xSplit:0,ySplit:4};
-  XLSX.utils.book_append_sheet(wb, ws5, '📞 Call Log');
 
-  const dateLabel = CUR === 'all' ? 'All_Dates' : CUR.replace('range:','').replace(':','_to_');
+  const ibSecRow=Array(nc4).fill(BL(DARK)); ibSecRow[0]=SEC('INBOUND CALL LOG');
+  aoa4.push(ibSecRow); rows4.push({hpt:26}); addMerge(m4,aoa4.length-1,0,nc4-1);
+  aoa4.push(['TIME','AGENT','CUSTOMER NUMBER','QUEUE','STATUS','DISPOSITION','CATEGORY','TALK TIME'].map(H));
+  rows4.push({hpt:22});
+
+  ibRows.forEach((r,i)=>{
+    const ans5=r['Call Status']==='Answered';
+    const [cfgi,cbgi]=CAT_CLR[r._cat]||[GRAY_D,GRAY_L];
+    const rbg5=ans5?'FFF0FDF4':'FFFFF5F5';
+    aoa4.push([
+      C(r._timeStr,GRAY_D,rbg5,false,11),
+      C(r._agent,r._agent==='Unknown'?'FF9CA3AF':GREEN_D,rbg5,true,11),
+      C(String(r['Customer Number']||''),GRAY_D,rbg5,false,11),
+      C(r._queue,'FF6B7280',rbg5,false,11),
+      C(r['Call Status'],ans5?GREEN_D:RED_D,ans5?GREEN_L:RED_L,true,11,'center'),
+      C(r._dispo,GRAY_D,rbg5,false,11,false,false,true),
+      C(r._cat,cfgi,cbgi,true,10,'center'),
+      C(fmtSec(r._convSec),GRAY_D,rbg5,false,11,'center'),
+    ]);
+    rows4.push({hpt:20});
+  });
+
+  const ws4=XLSX.utils.aoa_to_sheet(aoa4);
+  ws4['!merges']=m4; ws4['!rows']=rows4;
+  ws4['!cols']=[{wch:20},{wch:18},{wch:17},{wch:26},{wch:12},{wch:42},{wch:18},{wch:12}];
+  XLSX.utils.book_append_sheet(wb,ws4,'📥 Inbound Calls');
+
+  // ════════════════════════════════════════════
+  // SHEET 5 — COMPLETE CALL LOG
+  // ════════════════════════════════════════════
+  const aoa5=[],m5=[],rows5=[];
+  const nc5=12;
+  aoa5.push([T(`COMPLETE CALL LOG  (${total} records)`),...Array(nc5-1).fill(BL(GREEN_D))]);
+  rows5.push({hpt:40}); addMerge(m5,0,0,nc5-1);
+  aoa5.push([SB(`Date: ${dateLabel.replace(/_/g,' ')}  |  ${total.toLocaleString()} calls`),...Array(nc5-1).fill(BL(GREEN))]);
+  rows5.push({hpt:22}); addMerge(m5,1,0,nc5-1);
+  aoa5.push(Array(nc5).fill(BL(WHITE))); rows5.push({hpt:10});
+  aoa5.push(['TIME','DIRECTION','AGENT','CUSTOMER NO.','CUSTOMER NAME','STATUS','DISPOSITION','CATEGORY','TALK TIME','LIST','CIRCLE','OPERATOR'].map(H));
+  rows5.push({hpt:22});
+
+  rows.forEach((r,i)=>{
+    const ans6=r['Call Status']==='Answered';
+    const isOut=r['Direction']==='Outbound';
+    const [cfgj,cbgj]=CAT_CLR[r._cat]||[GRAY_D,GRAY_L];
+    const rbg6=ans6?'FFF0FDF4':'FFFFF5F5';
+    aoa5.push([
+      C(r._timeStr,GRAY_D,rbg6,false,11),
+      C(r['Direction'],isOut?BLUE_D:AMBER_D,isOut?BLUE_L:AMBER_L,true,11,'center'),
+      C(r._agent,r._agent==='Unknown'?'FF9CA3AF':GRAY_D,rbg6,true,11),
+      C(String(r['Customer Number']||''),GRAY_D,rbg6,false,11),
+      C(String(r['Customer Name']||'').slice(0,22),GRAY_D,rbg6,false,11),
+      C(r['Call Status'],ans6?GREEN_D:RED_D,ans6?GREEN_L:RED_L,true,11,'center'),
+      C(r._dispo,GRAY_D,rbg6,false,11,false,false,true),
+      C(r._cat,cfgj,cbgj,true,10,'center'),
+      C(fmtSec(r._convSec),GRAY_D,rbg6,false,11,'center'),
+      C(getListName(r._listId),'FF6B7280',rbg6,false,10,'center'),
+      C(String(r['Circle']||'').slice(0,16),'FF9CA3AF',rbg6,false,10),
+      C(String(r['Operator']||'').slice(0,16),'FF9CA3AF',rbg6,false,10),
+    ]);
+    rows5.push({hpt:19});
+  });
+
+  const ws5=XLSX.utils.aoa_to_sheet(aoa5);
+  ws5['!merges']=m5; ws5['!rows']=rows5;
+  ws5['!cols']=[{wch:18},{wch:12},{wch:18},{wch:16},{wch:22},{wch:11},{wch:40},{wch:18},{wch:12},{wch:16},{wch:18},{wch:16}];
+  ws5['!freeze']={xSplit:0,ySplit:4};
+  XLSX.utils.book_append_sheet(wb,ws5,'📞 Call Log');
+
   XLSX.writeFile(wb, `Acephone_CDR_${dateLabel}_${new Date().toISOString().slice(0,10)}.xlsx`);
 }
 </script>
